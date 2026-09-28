@@ -1,217 +1,96 @@
-name: AnDos PC VIRTUAL
+name: Windows 10 Max Performance Anti-VM
 
 on:
   workflow_dispatch:
-    inputs:
-      instance_number:
-        description: "Instance"
-        required: true
-        default: "1"
 
 jobs:
-  deploy:
-    runs-on: windows-latest
-    timeout-minutes: 360
+  build:
+    runs-on: windows-2022
 
     steps:
+      - name: Checkout do repositÃ³rio
+        uses: actions/checkout@v4
 
-    - name: Windows Interface
-      shell: pwsh
-      run: |
-        $a="HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-        New-Item $a -Force | Out-Null
+      - name: ðŸ‘¥ Criar UsuÃ¡rio Exclusivo para Jogos
+        shell: pwsh
+        run: |
+          Write-Host "Criando usuÃ¡rio exclusivo 'jogos'..." -ForegroundColor Green
+          $Password = ConvertTo-SecureString "Senha123!" -AsPlainText -Force
+          New-LocalUser -Name "jogos" -Password $Password -Description "Usuario Gamer" -FullName "Jogador"
+          Add-LocalGroupMember -Group "Administrators" -Member "jogos"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "jogos"
 
-        # Botão Iniciar à esquerda
-        Set-ItemProperty $a TaskbarAl 0 -ErrorAction SilentlyContinue
+      - name: ðŸ”’ Configurar e Liberar RDP Seguro
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
 
-        # Wallpaper do próprio Windows
-        $w=Get-ChildItem "C:\Windows\Web" -Recurse -Include *.jpg,*.jpeg,*.png -ErrorAction SilentlyContinue |
-          Select-Object -First 1
+      - name: ðŸ•¶ï¸ Aplicar Anti-VM Bypass (MÃ©todo Seguro sem Erros)
+        shell: cmd
+        run: |
+          echo Aplicando camuflagem de hardware compativel...
+          
+          :: 1. Altera chaves da BIOS e Placa-MÃ£e que nao exigem permissao restrita
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\SystemInformation" /v "SystemManufacturer" /t REG_SZ /d "ASUSTeK COMPUTER INC." /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\SystemInformation" /v "SystemProductName" /t REG_SZ /d "ROG STRIX Z790-E GAMING WIFI" /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\SystemInformation" /v "BIOSVersion" /t REG_SZ /d "American Megatrends Inc. 2102" /f
+          
+          :: 2. Esconde identificadores de VM no processador
+          reg add "HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0" /v "ProcessorNameString" /t REG_SZ /d "Intel(R) Core(TM) i9-14900K CPU @ 3.20GHz" /f
+          
+          :: 3. Mascara o sistema como Windows 10 Pro de desktop
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v "ProductName" /t REG_SZ /d "Windows 10 Pro" /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v "EditionID" /t REG_SZ /d "Professional" /f
 
-        if($w){
-          Set-ItemProperty `
-            "HKCU:\Control Panel\Desktop" `
-            Wallpaper `
-            $w.FullName
+          :: 4. Desativa de forma segura os serviÃ§os nativos do Hyper-V para o Roblox nao detectar
+          sc config vmicguestvc start= disabled
+          sc config vmicheartbeat start= disabled
+          sc config vmickvpexchange start= disabled
+          sc config vmicrdv start= disabled
+          sc config vmicshutdown start= disabled
+          sc config vmictimesync start= disabled
+          sc config vmicvmsession start= disabled
+          sc config vmicvss start= disabled
 
-          Add-Type @"
-        using System.Runtime.InteropServices;
-        public class Wallpaper {
-          [DllImport("user32.dll")]
-          public static extern int SystemParametersInfo(
-            int a,int b,string c,int d);
-        }
-        "@
+      - name: ðŸš€ Tweaks de Desempenho Extremo (Gamer)
+        shell: pwsh
+        run: |
+          Write-Host "Otimizando recursos do sistema..." -ForegroundColor Green
+          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          $RdpKey = 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
+          New-ItemProperty -Path $RdpKey -Name "BPP" -Value 16 -PropertyType DWORD -Force
+          New-ItemProperty -Path $RdpKey -Name "MinFrameRate" -Value 60 -PropertyType DWORD -Force
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name "VisualFXSetting" -Value 2
+          Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
 
-          [Wallpaper]::SystemParametersInfo(
-            20,0,$w.FullName,3
-          )
-        }
+      - name: ðŸŒ Instalar e Conectar o Tailscale via Chocolatey
+        shell: pwsh
+        run: |
+          Write-Host "Instalando Tailscale..." -ForegroundColor Green
+          choco install tailscale -y --no-progress
+          Start-Sleep -Seconds 5
+          
+          Write-Host "Conectando ao Tailscale..." -ForegroundColor Green
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=win10-antivm-pc --accept-routes
+          
+          Write-Host "IP da sua MÃ¡quina Virtual Windows 10:" -ForegroundColor Cyan
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
 
-        # Remover Unity Hub
-        Get-Process -Name "Unity Hub" `
-          -ErrorAction SilentlyContinue |
-          Stop-Process -Force -ErrorAction SilentlyContinue
-
-        Remove-Item `
-          "$env:LOCALAPPDATA\Programs\Unity Hub" `
-          -Recurse `
-          -Force `
-          -ErrorAction SilentlyContinue
-
-        # Reiniciar Explorer corretamente
-        Get-Process explorer `
-          -ErrorAction SilentlyContinue |
-          Stop-Process -Force -ErrorAction SilentlyContinue
-
-        Start-Sleep -Seconds 2
-
-        Start-Process explorer.exe
-
-    - name: Enable RDP
-      shell: pwsh
-      run: |
-        Set-ItemProperty `
-          "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
-          fDenyTSConnections 0
-
-        Enable-NetFirewallRule `
-          -DisplayGroup "Remote Desktop"
-
-    - name: Create RDP User
-      shell: pwsh
-      env:
-        PASS: ${{ secrets.RDP_PASSWORD }}
-      run: |
-        if([string]::IsNullOrWhiteSpace($env:PASS)){
-          throw "Configure o Secret RDP_PASSWORD."
-        }
-
-        $p=ConvertTo-SecureString `
-          $env:PASS `
-          -AsPlainText `
-          -Force
-
-        $u=Get-LocalUser `
-          -Name runneradmin `
-          -ErrorAction SilentlyContinue
-
-        if(!$u){
-          New-LocalUser `
-            -Name runneradmin `
-            -Password $p `
-            -PasswordNeverExpires
-        }
-        else{
-          Set-LocalUser `
-            -Name runneradmin `
-            -Password $p
-        }
-
-        Add-LocalGroupMember `
-          -Group "Remote Desktop Users" `
-          -Member runneradmin `
-          -ErrorAction SilentlyContinue
-
-    - name: Install Tailscale
-      shell: pwsh
-      run: |
-        $i="$env:TEMP\ts.msi"
-
-        Invoke-WebRequest `
-          "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" `
-          -OutFile $i
-
-        Start-Process `
-          msiexec.exe `
-          -ArgumentList "/i `"$i`" /quiet /norestart" `
-          -Wait
-
-        Remove-Item $i -Force
-
-    - name: Connect Tailscale
-      shell: pwsh
-      env:
-        KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-      run: |
-        if([string]::IsNullOrWhiteSpace($env:KEY)){
-          throw "Configure o Secret TAILSCALE_AUTH_KEY."
-        }
-
-        $ts="C:\Program Files\Tailscale\tailscale.exe"
-
-        & $ts up `
-          --authkey="$env:KEY" `
-          --hostname="andos-${{ github.run_id }}"
-
-        Start-Sleep -Seconds 10
-
-        $ip=(& $ts ip -4 | Select-Object -First 1).Trim()
-
-        if(!$ip){
-          throw "Não foi possível obter o IP Tailscale."
-        }
-
-        "IP=$ip" >> $env:GITHUB_ENV
-
-        Write-Host ""
-        Write-Host "============================"
-        Write-Host "     AnDos PC VIRTUAL"
-        Write-Host "============================"
-        Write-Host "IP: $ip"
-        Write-Host "USER: runneradmin"
-        Write-Host "PORT: 3389"
-        Write-Host "============================"
-
-    - name: Install Steam
-      shell: pwsh
-      run: |
-        $i="$env:TEMP\SteamSetup.exe"
-
-        Invoke-WebRequest `
-          "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe" `
-          -OutFile $i
-
-        Start-Process `
-          $i `
-          -ArgumentList "/S" `
-          -Wait
-
-        Remove-Item $i -Force
-
-        Write-Host "Steam instalado."
-
-    - name: Install Chrome
-      shell: pwsh
-      run: |
-        $i="$env:TEMP\chrome.exe"
-
-        Invoke-WebRequest `
-          "https://dl.google.com/chrome/install/latest/chrome_installer.exe" `
-          -OutFile $i
-
-        Start-Process `
-          $i `
-          -ArgumentList "/silent /install" `
-          -Wait
-
-        Remove-Item $i -Force
-
-        Write-Host "Chrome instalado."
-
-    - name: Keep Alive
-      shell: pwsh
-      run: |
-        Write-Host ""
-        Write-Host "============================"
-        Write-Host " AnDos PC VIRTUAL ATIVO"
-        Write-Host " Steam: OK"
-        Write-Host " Chrome: OK"
-        Write-Host " Unity Hub: REMOVIDO"
-        Write-Host "============================"
-        Write-Host ""
-
-        while($true){
-          Write-Host "PC ativo - $(Get-Date)"
-          Start-Sleep -Seconds 60
-        }
+      - name: ðŸŸ¢ Manter o PC Virtual Ativo
+        shell: pwsh
+        run: |
+          Write-Host "==========================================================" -ForegroundColor Green
+          Write-Host "Windows 10 Pro Virtual Pronto!" -ForegroundColor Green
+          Write-Host "CREDENCIAIS NO WINDOWS APP:" -ForegroundColor Yellow
+          Write-Host "UsuÃ¡rio: jogos" -ForegroundColor Cyan
+          Write-Host "Senha: Senha123!" -ForegroundColor Cyan
+          Write-Host "==========================================================" -ForegroundColor Green
+          
+          $i = 0
+          while ($i -lt 360) {
+              Start-Sleep -Seconds 60
+              $i++
+          }
+          
