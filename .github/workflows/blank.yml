@@ -1,13 +1,30 @@
-      - name: Windows 10 Style
+name: AnDos PC VIRTUAL - RDP
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_number:
+        description: "Instance"
+        required: true
+        default: "1"
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+
+      # ==========================================
+      # CONFIGURAR WINDOWS
+      # ==========================================
+      - name: Configure Windows
         shell: pwsh
         run: |
 
-          Write-Host "Aplicando visual estilo Windows 10..."
+          Write-Host "Configurando Windows..."
 
-          # ==========================================
-          # MENU INICIAR À ESQUERDA
-          # ==========================================
-
+          # Botão Iniciar à esquerda
           $advanced = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 
           New-Item `
@@ -21,91 +38,10 @@
             0 `
             -ErrorAction SilentlyContinue
 
-
-          # ==========================================
-          # MOSTRAR EXTENSÕES DOS ARQUIVOS
-          # ==========================================
-
-          Set-ItemProperty `
-            $advanced `
-            HideFileExt `
-            0 `
-            -ErrorAction SilentlyContinue
-
-
-          # ==========================================
-          # MOSTRAR ARQUIVOS OCULTOS
-          # ==========================================
-
-          Set-ItemProperty `
-            $advanced `
-            Hidden `
-            1 `
-            -ErrorAction SilentlyContinue
-
-
-          # ==========================================
-          # TEMA ESCURO DO WINDOWS
-          # ==========================================
-
-          $personalize = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-
-          New-Item `
-            $personalize `
-            -Force |
-            Out-Null
-
-          Set-ItemProperty `
-            $personalize `
-            AppsUseLightTheme `
-            0 `
-            -ErrorAction SilentlyContinue
-
-          Set-ItemProperty `
-            $personalize `
-            SystemUsesLightTheme `
-            0 `
-            -ErrorAction SilentlyContinue
-
-
-          # ==========================================
-          # DEIXAR A BARRA DE TAREFAS MENOS TRANSPARENTE
-          # ==========================================
-
-          $explorer = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-
-          Set-ItemProperty `
-            $explorer `
-            TaskbarAcrylicOpacity `
-            0 `
-            -ErrorAction SilentlyContinue
-
-
-          # ==========================================
-          # MOSTRAR ÍCONE "ESTE COMPUTADOR"
-          # ==========================================
-
-          $desktop = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel"
-
-          New-Item `
-            $desktop `
-            -Force |
-            Out-Null
-
-          # Este Computador
-          Set-ItemProperty `
-            $desktop `
-            "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" `
-            0 `
-            -ErrorAction SilentlyContinue
-
-
-          # ==========================================
-          # ATUALIZAR EXPLORER
-          # ==========================================
-
-          Stop-Process `
-            -Name explorer `
+          # Reiniciar Explorer
+          Get-Process explorer `
+            -ErrorAction SilentlyContinue |
+            Stop-Process `
             -Force `
             -ErrorAction SilentlyContinue
 
@@ -113,4 +49,231 @@
 
           Start-Process explorer.exe
 
-          Write-Host "Visual aplicado."
+          Write-Host "Windows configurado."
+
+
+      # ==========================================
+      # ATIVAR RDP
+      # ==========================================
+      - name: Enable RDP
+        shell: pwsh
+        run: |
+
+          Write-Host "Ativando RDP..."
+
+          Set-ItemProperty `
+            "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" `
+            -Value 0
+
+          Set-ItemProperty `
+            "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "UserAuthentication" `
+            -Value 1
+
+          Enable-NetFirewallRule `
+            -DisplayGroup "Remote Desktop"
+
+          Write-Host "RDP ativado."
+
+
+      # ==========================================
+      # CRIAR USUÁRIO RDP
+      # ==========================================
+      - name: Create RDP User
+        shell: pwsh
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+
+        run: |
+
+          if ([string]::IsNullOrWhiteSpace($env:RDP_PASSWORD)) {
+            throw "Configure o Secret RDP_PASSWORD no GitHub."
+          }
+
+          $password = ConvertTo-SecureString `
+            $env:RDP_PASSWORD `
+            -AsPlainText `
+            -Force
+
+          $user = Get-LocalUser `
+            -Name "runneradmin" `
+            -ErrorAction SilentlyContinue
+
+          if ($null -eq $user) {
+
+            New-LocalUser `
+              -Name "runneradmin" `
+              -Password $password `
+              -PasswordNeverExpires `
+              -AccountNeverExpires
+
+            Write-Host "Usuário runneradmin criado."
+
+          }
+          else {
+
+            Set-LocalUser `
+              -Name "runneradmin" `
+              -Password $password
+
+            Write-Host "Senha do runneradmin atualizada."
+          }
+
+          Add-LocalGroupMember `
+            -Group "Remote Desktop Users" `
+            -Member "runneradmin" `
+            -ErrorAction SilentlyContinue
+
+          Write-Host "Usuário autorizado para RDP."
+
+
+      # ==========================================
+      # INSTALAR TAILSCALE
+      # ==========================================
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+
+          Write-Host "Instalando Tailscale..."
+
+          $installer = "$env:TEMP\tailscale.msi"
+
+          Invoke-WebRequest `
+            "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" `
+            -OutFile $installer
+
+          Start-Process `
+            msiexec.exe `
+            -ArgumentList "/i `"$installer`" /quiet /norestart" `
+            -Wait
+
+          Remove-Item `
+            $installer `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          Write-Host "Tailscale instalado."
+
+
+      # ==========================================
+      # CONECTAR TAILSCALE
+      # ==========================================
+      - name: Connect Tailscale
+        shell: pwsh
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+        run: |
+
+          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTH_KEY)) {
+            throw "Configure o Secret TAILSCALE_AUTH_KEY no GitHub."
+          }
+
+          $tailscale = "C:\Program Files\Tailscale\tailscale.exe"
+
+          if (!(Test-Path $tailscale)) {
+            throw "tailscale.exe não foi encontrado."
+          }
+
+          & $tailscale up `
+            --authkey="$env:TAILSCALE_AUTH_KEY" `
+            --hostname="andos-${{ github.run_id }}"
+
+          Start-Sleep -Seconds 10
+
+          $ip = (
+            & $tailscale ip -4 |
+            Select-Object -First 1
+          ).Trim()
+
+          if ([string]::IsNullOrWhiteSpace($ip)) {
+            throw "Não foi possível obter o IP Tailscale."
+          }
+
+          "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "       AnDos PC VIRTUAL"
+          Write-Host "======================================"
+          Write-Host ""
+          Write-Host "IP Tailscale: $ip"
+          Write-Host "Usuário:      runneradmin"
+          Write-Host "Porta RDP:    3389"
+          Write-Host ""
+          Write-Host "======================================"
+
+
+      # ==========================================
+      # TESTAR RDP
+      # ==========================================
+      - name: Test RDP
+        shell: pwsh
+        run: |
+
+          Write-Host "Testando porta RDP..."
+
+          $result = Test-NetConnection `
+            -ComputerName "127.0.0.1" `
+            -Port 3389 `
+            -WarningAction SilentlyContinue
+
+          if ($result.TcpTestSucceeded) {
+
+            Write-Host "RDP está funcionando."
+
+          }
+          else {
+
+            Write-Host "AVISO: porta RDP ainda não respondeu."
+
+          }
+
+
+      # ==========================================
+      # INFORMAÇÕES DE CONEXÃO
+      # ==========================================
+      - name: Connection Information
+        shell: pwsh
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "       AN DOS PC VIRTUAL ONLINE"
+          Write-Host "=========================================="
+          Write-Host ""
+          Write-Host "RDP"
+          Write-Host "------------------------------------------"
+          Write-Host "IP:       $env:TAILSCALE_IP"
+          Write-Host "Porta:    3389"
+          Write-Host "Usuário:  runneradmin"
+          Write-Host ""
+          Write-Host "Abra o Windows App / Microsoft Remote"
+          Write-Host "Desktop e use o IP acima."
+          Write-Host ""
+          Write-Host "=========================================="
+
+
+      # ==========================================
+      # MANTER RUNNER ATIVO
+      # ==========================================
+      - name: Keep Alive
+        shell: pwsh
+        run: |
+
+          Write-Host ""
+          Write-Host "================================"
+          Write-Host "     AnDos PC VIRTUAL ATIVO"
+          Write-Host "================================"
+          Write-Host "RDP:       ATIVO"
+          Write-Host "Tailscale: ATIVO"
+          Write-Host "================================"
+          Write-Host ""
+
+          while ($true) {
+
+            Write-Host "PC ativo - $(Get-Date)"
+
+            Start-Sleep -Seconds 60
+          }
