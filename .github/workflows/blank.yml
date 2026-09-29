@@ -1,4 +1,4 @@
-name: AnDos PC VIRTUAL - RDP
+name: AnDos PC VIRTUAL
 
 on:
   workflow_dispatch:
@@ -10,27 +10,22 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 360
 
     steps:
 
-      # ==========================================
-      # CONFIGURAR WINDOWS
-      # ==========================================
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure Windows
         shell: pwsh
         run: |
+          Write-Host "Configurando AnDos PC VIRTUAL..."
 
-          Write-Host "Configurando Windows..."
-
-          # Botão Iniciar à esquerda
           $advanced = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 
-          New-Item `
-            $advanced `
-            -Force |
-            Out-Null
+          New-Item $advanced -Force | Out-Null
 
           Set-ItemProperty `
             $advanced `
@@ -38,27 +33,11 @@ jobs:
             0 `
             -ErrorAction SilentlyContinue
 
-          # Reiniciar Explorer
-          Get-Process explorer `
-            -ErrorAction SilentlyContinue |
-            Stop-Process `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          Start-Sleep -Seconds 2
-
-          Start-Process explorer.exe
-
           Write-Host "Windows configurado."
 
-
-      # ==========================================
-      # ATIVAR RDP
-      # ==========================================
       - name: Enable RDP
         shell: pwsh
         run: |
-
           Write-Host "Ativando RDP..."
 
           Set-ItemProperty `
@@ -76,19 +55,13 @@ jobs:
 
           Write-Host "RDP ativado."
 
-
-      # ==========================================
-      # CRIAR USUÁRIO RDP
-      # ==========================================
       - name: Create RDP User
         shell: pwsh
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
-
         run: |
-
           if ([string]::IsNullOrWhiteSpace($env:RDP_PASSWORD)) {
-            throw "Configure o Secret RDP_PASSWORD no GitHub."
+            throw "Configure o Secret RDP_PASSWORD."
           }
 
           $password = ConvertTo-SecureString `
@@ -101,23 +74,16 @@ jobs:
             -ErrorAction SilentlyContinue
 
           if ($null -eq $user) {
-
             New-LocalUser `
               -Name "runneradmin" `
               -Password $password `
               -PasswordNeverExpires `
               -AccountNeverExpires
-
-            Write-Host "Usuário runneradmin criado."
-
           }
           else {
-
             Set-LocalUser `
               -Name "runneradmin" `
               -Password $password
-
-            Write-Host "Senha do runneradmin atualizada."
           }
 
           Add-LocalGroupMember `
@@ -125,16 +91,31 @@ jobs:
             -Member "runneradmin" `
             -ErrorAction SilentlyContinue
 
-          Write-Host "Usuário autorizado para RDP."
+          Write-Host "Usuário runneradmin pronto."
 
+      - name: Performance
+        shell: pwsh
+        run: |
+          Write-Host "Aplicando configurações de desempenho..."
 
-      # ==========================================
-      # INSTALAR TAILSCALE
-      # ==========================================
+          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+
+          Set-ItemProperty `
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" `
+            -Name "VisualFXSetting" `
+            -Value 2 `
+            -ErrorAction SilentlyContinue
+
+          Set-Service `
+            -Name "DiagTrack" `
+            -StartupType Disabled `
+            -ErrorAction SilentlyContinue
+
+          Write-Host "Configurações aplicadas."
+
       - name: Install Tailscale
         shell: pwsh
         run: |
-
           Write-Host "Instalando Tailscale..."
 
           $installer = "$env:TEMP\tailscale.msi"
@@ -155,26 +136,16 @@ jobs:
 
           Write-Host "Tailscale instalado."
 
-
-      # ==========================================
-      # CONECTAR TAILSCALE
-      # ==========================================
       - name: Connect Tailscale
         shell: pwsh
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-
         run: |
-
           if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTH_KEY)) {
-            throw "Configure o Secret TAILSCALE_AUTH_KEY no GitHub."
+            throw "Configure o Secret TAILSCALE_AUTH_KEY."
           }
 
           $tailscale = "C:\Program Files\Tailscale\tailscale.exe"
-
-          if (!(Test-Path $tailscale)) {
-            throw "tailscale.exe não foi encontrado."
-          }
 
           & $tailscale up `
             --authkey="$env:TAILSCALE_AUTH_KEY" `
@@ -194,74 +165,47 @@ jobs:
           "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
           Write-Host ""
-          Write-Host "======================================"
-          Write-Host "       AnDos PC VIRTUAL"
-          Write-Host "======================================"
-          Write-Host ""
-          Write-Host "IP Tailscale: $ip"
-          Write-Host "Usuário:      runneradmin"
-          Write-Host "Porta RDP:    3389"
-          Write-Host ""
-          Write-Host "======================================"
+          Write-Host "=========================================="
+          Write-Host "        AnDos PC VIRTUAL"
+          Write-Host "=========================================="
+          Write-Host "IP:       $ip"
+          Write-Host "Usuário:  runneradmin"
+          Write-Host "Porta:    3389"
+          Write-Host "=========================================="
 
-
-      # ==========================================
-      # TESTAR RDP
-      # ==========================================
       - name: Test RDP
         shell: pwsh
         run: |
-
-          Write-Host "Testando porta RDP..."
-
           $result = Test-NetConnection `
             -ComputerName "127.0.0.1" `
             -Port 3389 `
             -WarningAction SilentlyContinue
 
           if ($result.TcpTestSucceeded) {
-
-            Write-Host "RDP está funcionando."
-
+            Write-Host "RDP: ATIVO"
           }
           else {
-
-            Write-Host "AVISO: porta RDP ainda não respondeu."
-
+            Write-Host "AVISO: RDP ainda não respondeu."
           }
 
-
-      # ==========================================
-      # INFORMAÇÕES DE CONEXÃO
-      # ==========================================
       - name: Connection Information
         shell: pwsh
         run: |
-
           Write-Host ""
           Write-Host "=========================================="
-          Write-Host "       AN DOS PC VIRTUAL ONLINE"
+          Write-Host "       AnDos PC VIRTUAL ONLINE"
           Write-Host "=========================================="
           Write-Host ""
-          Write-Host "RDP"
-          Write-Host "------------------------------------------"
+          Write-Host "Windows App / RDP"
           Write-Host "IP:       $env:TAILSCALE_IP"
           Write-Host "Porta:    3389"
           Write-Host "Usuário:  runneradmin"
           Write-Host ""
-          Write-Host "Abra o Windows App / Microsoft Remote"
-          Write-Host "Desktop e use o IP acima."
-          Write-Host ""
           Write-Host "=========================================="
 
-
-      # ==========================================
-      # MANTER RUNNER ATIVO
-      # ==========================================
       - name: Keep Alive
         shell: pwsh
         run: |
-
           Write-Host ""
           Write-Host "================================"
           Write-Host "     AnDos PC VIRTUAL ATIVO"
@@ -272,8 +216,6 @@ jobs:
           Write-Host ""
 
           while ($true) {
-
             Write-Host "PC ativo - $(Get-Date)"
-
             Start-Sleep -Seconds 60
           }
