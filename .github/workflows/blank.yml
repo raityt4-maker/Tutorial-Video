@@ -10,7 +10,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-2022
+    runs-on: windows-xp
     timeout-minutes: 360
 
     steps:
