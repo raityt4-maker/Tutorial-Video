@@ -163,58 +163,54 @@ jobs:
           Write-Host "       INSTALANDO LUANTI"
           Write-Host "======================================"
 
-          $url = "https://github.com/luanti-org/luanti/releases/download/5.17.0/luanti-5.17.0-win64.exe"
-          $installer = "$env:TEMP\luanti-installer.exe"
+          $url = "https://github.com/luanti-org/luanti/releases/download/5.17.0/luanti-5.17.0-win64.zip"
+          $zip = "$env:TEMP\luanti.zip"
+          $installDir = "C:\Luanti"
 
-          Write-Host "Baixando Luanti 5.17.0..."
+          Write-Host "Baixando Luanti..."
 
           Invoke-WebRequest `
             -Uri $url `
-            -OutFile $installer
+            -OutFile $zip `
+            -UseBasicParsing
 
-          if (!(Test-Path $installer)) {
-            throw "O instalador do Luanti não foi baixado."
+          if (!(Test-Path $zip)) {
+            throw "Não foi possível baixar o Luanti."
           }
 
-          Write-Host "Executando instalador..."
+          Write-Host "Extraindo arquivos..."
 
-          Start-Process `
-            -FilePath $installer `
-            -ArgumentList "/S" `
-            -Wait
+          if (Test-Path $installDir) {
+            Remove-Item `
+              $installDir `
+              -Recurse `
+              -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $installDir `
+            -Force | Out-Null
+
+          Expand-Archive `
+            -Path $zip `
+            -DestinationPath $installDir `
+            -Force
 
           Remove-Item `
-            $installer `
+            $zip `
             -Force `
             -ErrorAction SilentlyContinue
 
-          $possiblePaths = @(
-            "$env:ProgramFiles\Luanti\bin\luanti.exe",
-            "$env:ProgramFiles\Luanti\luanti.exe",
-            "${env:ProgramFiles(x86)}\Luanti\bin\luanti.exe",
-            "${env:ProgramFiles(x86)}\Luanti\luanti.exe"
-          )
+          $luanti = Get-ChildItem `
+            $installDir `
+            -Filter "luanti.exe" `
+            -Recurse `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
 
-          $luanti = $null
-
-          foreach ($path in $possiblePaths) {
-            if (Test-Path $path) {
-              $luanti = $path
-              break
-            }
-          }
-
-          if ($null -eq $luanti) {
-            $luanti = Get-ChildItem `
-              "$env:ProgramFiles" `
-              -Filter "luanti.exe" `
-              -Recurse `
-              -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName
-          }
-
-          if ($null -eq $luanti) {
-            throw "Luanti foi instalado, mas o executável não foi encontrado."
+          if ([string]::IsNullOrWhiteSpace($luanti)) {
+            throw "luanti.exe não foi encontrado depois da extração."
           }
 
           "LUANTI_EXE=$luanti" >> $env:GITHUB_ENV
@@ -241,8 +237,7 @@ jobs:
           $shortcut.Description = "Luanti"
           $shortcut.Save()
 
-          Write-Host "Atalho criado:"
-          Write-Host $shortcutPath
+          Write-Host "Atalho criado na Área de Trabalho."
 
       - name: Test RDP
         shell: pwsh
@@ -276,10 +271,7 @@ jobs:
           Write-Host "JOGO"
           Write-Host "------------------------------------------"
           Write-Host "Luanti instalado"
-          Write-Host "Atalho criado na Área de Trabalho"
-          Write-Host ""
-          Write-Host "Abra o Windows App / Microsoft Remote"
-          Write-Host "Desktop e use o IP acima."
+          Write-Host "Atalho disponível na Área de Trabalho"
           Write-Host ""
           Write-Host "=========================================="
 
