@@ -15,13 +15,10 @@ jobs:
 
     steps:
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Configure Windows
         shell: pwsh
         run: |
-          Write-Host "Configurando AnDos PC VIRTUAL..."
+          Write-Host "Configurando Windows..."
 
           $advanced = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 
@@ -59,9 +56,10 @@ jobs:
         shell: pwsh
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+
         run: |
           if ([string]::IsNullOrWhiteSpace($env:RDP_PASSWORD)) {
-            throw "Configure o Secret RDP_PASSWORD."
+            throw "Configure o Secret RDP_PASSWORD no GitHub."
           }
 
           $password = ConvertTo-SecureString `
@@ -91,27 +89,7 @@ jobs:
             -Member "runneradmin" `
             -ErrorAction SilentlyContinue
 
-          Write-Host "Usuário runneradmin pronto."
-
-      - name: Performance
-        shell: pwsh
-        run: |
-          Write-Host "Aplicando configurações de desempenho..."
-
-          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
-
-          Set-ItemProperty `
-            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" `
-            -Name "VisualFXSetting" `
-            -Value 2 `
-            -ErrorAction SilentlyContinue
-
-          Set-Service `
-            -Name "DiagTrack" `
-            -StartupType Disabled `
-            -ErrorAction SilentlyContinue
-
-          Write-Host "Configurações aplicadas."
+          Write-Host "Usuário RDP configurado."
 
       - name: Install Tailscale
         shell: pwsh
@@ -140,12 +118,17 @@ jobs:
         shell: pwsh
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
         run: |
           if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTH_KEY)) {
-            throw "Configure o Secret TAILSCALE_AUTH_KEY."
+            throw "Configure o Secret TAILSCALE_AUTH_KEY no GitHub."
           }
 
           $tailscale = "C:\Program Files\Tailscale\tailscale.exe"
+
+          if (!(Test-Path $tailscale)) {
+            throw "tailscale.exe não foi encontrado."
+          }
 
           & $tailscale up `
             --authkey="$env:TAILSCALE_AUTH_KEY" `
@@ -165,13 +148,101 @@ jobs:
           "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
           Write-Host ""
-          Write-Host "=========================================="
-          Write-Host "        AnDos PC VIRTUAL"
-          Write-Host "=========================================="
-          Write-Host "IP:       $ip"
-          Write-Host "Usuário:  runneradmin"
-          Write-Host "Porta:    3389"
-          Write-Host "=========================================="
+          Write-Host "======================================"
+          Write-Host "       AnDos PC VIRTUAL"
+          Write-Host "======================================"
+          Write-Host "IP Tailscale: $ip"
+          Write-Host "Usuário:      runneradmin"
+          Write-Host "Porta RDP:    3389"
+          Write-Host "======================================"
+
+      - name: Install Luanti
+        shell: pwsh
+        run: |
+          Write-Host "======================================"
+          Write-Host "       INSTALANDO LUANTI"
+          Write-Host "======================================"
+
+          $url = "https://github.com/luanti-org/luanti/releases/download/5.17.0/luanti-5.17.0-win64.exe"
+          $installer = "$env:TEMP\luanti-installer.exe"
+
+          Write-Host "Baixando Luanti 5.17.0..."
+
+          Invoke-WebRequest `
+            -Uri $url `
+            -OutFile $installer
+
+          if (!(Test-Path $installer)) {
+            throw "O instalador do Luanti não foi baixado."
+          }
+
+          Write-Host "Executando instalador..."
+
+          Start-Process `
+            -FilePath $installer `
+            -ArgumentList "/S" `
+            -Wait
+
+          Remove-Item `
+            $installer `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          $possiblePaths = @(
+            "$env:ProgramFiles\Luanti\bin\luanti.exe",
+            "$env:ProgramFiles\Luanti\luanti.exe",
+            "${env:ProgramFiles(x86)}\Luanti\bin\luanti.exe",
+            "${env:ProgramFiles(x86)}\Luanti\luanti.exe"
+          )
+
+          $luanti = $null
+
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              $luanti = $path
+              break
+            }
+          }
+
+          if ($null -eq $luanti) {
+            $luanti = Get-ChildItem `
+              "$env:ProgramFiles" `
+              -Filter "luanti.exe" `
+              -Recurse `
+              -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+
+          if ($null -eq $luanti) {
+            throw "Luanti foi instalado, mas o executável não foi encontrado."
+          }
+
+          "LUANTI_EXE=$luanti" >> $env:GITHUB_ENV
+
+          Write-Host ""
+          Write-Host "Luanti instalado com sucesso!"
+          Write-Host "Executável: $luanti"
+
+      - name: Create Luanti Desktop Shortcut
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:LUANTI_EXE)) {
+            throw "LUANTI_EXE não foi definido."
+          }
+
+          $desktop = [Environment]::GetFolderPath("Desktop")
+          $shortcutPath = Join-Path $desktop "Luanti.lnk"
+
+          $shell = New-Object -ComObject WScript.Shell
+
+          $shortcut = $shell.CreateShortcut($shortcutPath)
+          $shortcut.TargetPath = $env:LUANTI_EXE
+          $shortcut.WorkingDirectory = Split-Path $env:LUANTI_EXE
+          $shortcut.Description = "Luanti"
+          $shortcut.Save()
+
+          Write-Host "Atalho criado:"
+          Write-Host $shortcutPath
 
       - name: Test RDP
         shell: pwsh
@@ -182,10 +253,10 @@ jobs:
             -WarningAction SilentlyContinue
 
           if ($result.TcpTestSucceeded) {
-            Write-Host "RDP: ATIVO"
+            Write-Host "RDP está funcionando."
           }
           else {
-            Write-Host "AVISO: RDP ainda não respondeu."
+            Write-Host "AVISO: porta RDP ainda não respondeu."
           }
 
       - name: Connection Information
@@ -193,13 +264,22 @@ jobs:
         run: |
           Write-Host ""
           Write-Host "=========================================="
-          Write-Host "       AnDos PC VIRTUAL ONLINE"
+          Write-Host "       AN DOS PC VIRTUAL ONLINE"
           Write-Host "=========================================="
           Write-Host ""
-          Write-Host "Windows App / RDP"
+          Write-Host "RDP"
+          Write-Host "------------------------------------------"
           Write-Host "IP:       $env:TAILSCALE_IP"
           Write-Host "Porta:    3389"
           Write-Host "Usuário:  runneradmin"
+          Write-Host ""
+          Write-Host "JOGO"
+          Write-Host "------------------------------------------"
+          Write-Host "Luanti instalado"
+          Write-Host "Atalho criado na Área de Trabalho"
+          Write-Host ""
+          Write-Host "Abra o Windows App / Microsoft Remote"
+          Write-Host "Desktop e use o IP acima."
           Write-Host ""
           Write-Host "=========================================="
 
@@ -212,6 +292,7 @@ jobs:
           Write-Host "================================"
           Write-Host "RDP:       ATIVO"
           Write-Host "Tailscale: ATIVO"
+          Write-Host "Luanti:    INSTALADO"
           Write-Host "================================"
           Write-Host ""
 
