@@ -1,4 +1,4 @@
-name: AnDos PC VIRTUAL
+name: AnDos PC VIRTUAL - RDP
 
 on:
   workflow_dispatch:
@@ -15,533 +15,265 @@ jobs:
 
     steps:
 
-    # ==========================================
-    # WINDOWS / INTERFACE
-    # ==========================================
-    - name: Windows Interface
-      shell: pwsh
-      run: |
-        $a="HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+      # ==========================================
+      # CONFIGURAR WINDOWS
+      # ==========================================
+      - name: Configure Windows
+        shell: pwsh
+        run: |
 
-        New-Item $a -Force | Out-Null
+          Write-Host "Configurando Windows..."
 
-        # Botão Iniciar à esquerda
-        Set-ItemProperty `
-          $a `
-          TaskbarAl `
-          0 `
-          -ErrorAction SilentlyContinue
+          # Botão Iniciar à esquerda
+          $advanced = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 
-        # Wallpaper do Windows
-        $w=Get-ChildItem `
-          "C:\Windows\Web" `
-          -Recurse `
-          -Include *.jpg,*.jpeg,*.png `
-          -ErrorAction SilentlyContinue |
-          Select-Object -First 1
-
-        if($w){
+          New-Item `
+            $advanced `
+            -Force |
+            Out-Null
 
           Set-ItemProperty `
-            "HKCU:\Control Panel\Desktop" `
-            Wallpaper `
-            $w.FullName
+            $advanced `
+            TaskbarAl `
+            0 `
+            -ErrorAction SilentlyContinue
 
-          Add-Type @"
-        using System.Runtime.InteropServices;
+          # Reiniciar Explorer
+          Get-Process explorer `
+            -ErrorAction SilentlyContinue |
+            Stop-Process `
+            -Force `
+            -ErrorAction SilentlyContinue
 
-        public class Wallpaper {
-          [DllImport("user32.dll")]
-          public static extern int SystemParametersInfo(
-            int a,
-            int b,
-            string c,
-            int d
-          );
-        }
-        "@
+          Start-Sleep -Seconds 2
 
-          [Wallpaper]::SystemParametersInfo(
-            20,
-            0,
-            $w.FullName,
-            3
-          )
-        }
+          Start-Process explorer.exe
 
-        # Remover Unity Hub
-        Get-Process `
-          -Name "Unity Hub" `
-          -ErrorAction SilentlyContinue |
-          Stop-Process `
-          -Force `
-          -ErrorAction SilentlyContinue
-
-        Remove-Item `
-          "$env:LOCALAPPDATA\Programs\Unity Hub" `
-          -Recurse `
-          -Force `
-          -ErrorAction SilentlyContinue
-
-        # Reiniciar Explorer
-        Get-Process `
-          explorer `
-          -ErrorAction SilentlyContinue |
-          Stop-Process `
-          -Force `
-          -ErrorAction SilentlyContinue
-
-        Start-Sleep -Seconds 2
-
-        Start-Process explorer.exe
+          Write-Host "Windows configurado."
 
 
-    # ==========================================
-    # RDP
-    # ==========================================
-    - name: Enable RDP
-      shell: pwsh
-      run: |
+      # ==========================================
+      # ATIVAR RDP
+      # ==========================================
+      - name: Enable RDP
+        shell: pwsh
+        run: |
 
-        Set-ItemProperty `
-          "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
-          fDenyTSConnections `
-          0
+          Write-Host "Ativando RDP..."
 
-        Enable-NetFirewallRule `
-          -DisplayGroup "Remote Desktop"
+          Set-ItemProperty `
+            "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" `
+            -Value 0
 
+          Set-ItemProperty `
+            "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "UserAuthentication" `
+            -Value 1
 
-    # ==========================================
-    # USUÁRIO RDP
-    # ==========================================
-    - name: Create RDP User
-      shell: pwsh
-      env:
-        PASS: ${{ secrets.RDP_PASSWORD }}
+          Enable-NetFirewallRule `
+            -DisplayGroup "Remote Desktop"
 
-      run: |
-
-        if([string]::IsNullOrWhiteSpace($env:PASS)){
-          throw "Configure o Secret RDP_PASSWORD."
-        }
-
-        $p=ConvertTo-SecureString `
-          $env:PASS `
-          -AsPlainText `
-          -Force
-
-        $u=Get-LocalUser `
-          -Name runneradmin `
-          -ErrorAction SilentlyContinue
-
-        if(!$u){
-
-          New-LocalUser `
-            -Name runneradmin `
-            -Password $p `
-            -PasswordNeverExpires
-
-        }else{
-
-          Set-LocalUser `
-            -Name runneradmin `
-            -Password $p
-        }
-
-        Add-LocalGroupMember `
-          -Group "Remote Desktop Users" `
-          -Member runneradmin `
-          -ErrorAction SilentlyContinue
+          Write-Host "RDP ativado."
 
 
-    # ==========================================
-    # TAILSCALE
-    # ==========================================
-    - name: Install Tailscale
-      shell: pwsh
-      run: |
+      # ==========================================
+      # CRIAR USUÁRIO RDP
+      # ==========================================
+      - name: Create RDP User
+        shell: pwsh
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
 
-        $i="$env:TEMP\ts.msi"
+        run: |
 
-        Invoke-WebRequest `
-          "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" `
-          -OutFile $i
-
-        Start-Process `
-          msiexec.exe `
-          -ArgumentList "/i `"$i`" /quiet /norestart" `
-          -Wait
-
-        Remove-Item `
-          $i `
-          -Force
-
-
-    # ==========================================
-    # CONECTAR TAILSCALE
-    # ==========================================
-    - name: Connect Tailscale
-      shell: pwsh
-      env:
-        KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-
-      run: |
-
-        if([string]::IsNullOrWhiteSpace($env:KEY)){
-          throw "Configure o Secret TAILSCALE_AUTH_KEY."
-        }
-
-        $ts="C:\Program Files\Tailscale\tailscale.exe"
-
-        & $ts up `
-          --authkey="$env:KEY" `
-          --hostname="andos-${{ github.run_id }}"
-
-        Start-Sleep -Seconds 10
-
-        $ip=(& $ts ip -4 |
-          Select-Object -First 1).Trim()
-
-        if(!$ip){
-          throw "Não foi possível obter o IP Tailscale."
-        }
-
-        "IP=$ip" >> $env:GITHUB_ENV
-
-        Write-Host ""
-        Write-Host "============================"
-        Write-Host "     AnDos PC VIRTUAL"
-        Write-Host "============================"
-        Write-Host "TAILSCALE IP: $ip"
-        Write-Host "RDP USER: runneradmin"
-        Write-Host "RDP PORT: 3389"
-        Write-Host "============================"
-
-
-    # ==========================================
-    # STEAM
-    # ==========================================
-    - name: Install Steam
-      shell: pwsh
-      run: |
-
-        $i="$env:TEMP\SteamSetup.exe"
-
-        Invoke-WebRequest `
-          "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe" `
-          -OutFile $i
-
-        Start-Process `
-          $i `
-          -ArgumentList "/S" `
-          -Wait
-
-        Remove-Item `
-          $i `
-          -Force
-
-        Write-Host "Steam instalado."
-
-
-    # ==========================================
-    # CHROME
-    # ==========================================
-    - name: Install Chrome
-      shell: pwsh
-      run: |
-
-        $i="$env:TEMP\chrome.exe"
-
-        Invoke-WebRequest `
-          "https://dl.google.com/chrome/install/latest/chrome_installer.exe" `
-          -OutFile $i
-
-        Start-Process `
-          $i `
-          -ArgumentList "/silent /install" `
-          -Wait
-
-        Remove-Item `
-          $i `
-          -Force
-
-        Write-Host "Chrome instalado."
-
-
-    # ==========================================
-    # SUNSHINE
-    # ==========================================
-    - name: Install Sunshine
-      shell: pwsh
-      run: |
-
-        Write-Host "Baixando Sunshine..."
-
-        $api = "https://api.github.com/repos/LizardByte/Sunshine/releases/latest"
-
-        $release = Invoke-RestMethod `
-          -Uri $api `
-          -Headers @{
-            "User-Agent"="AnDos-PC"
+          if ([string]::IsNullOrWhiteSpace($env:RDP_PASSWORD)) {
+            throw "Configure o Secret RDP_PASSWORD no GitHub."
           }
 
-        $asset = $release.assets |
-          Where-Object {
-            $_.name -match "Sunshine-Windows-AMD64.*\.installer\.msi$"
-          } |
-          Select-Object -First 1
+          $password = ConvertTo-SecureString `
+            $env:RDP_PASSWORD `
+            -AsPlainText `
+            -Force
 
-        if(!$asset){
+          $user = Get-LocalUser `
+            -Name "runneradmin" `
+            -ErrorAction SilentlyContinue
 
-          $asset = $release.assets |
-            Where-Object {
-              $_.name -match "Windows.*AMD64.*\.msi$"
-            } |
+          if ($null -eq $user) {
+
+            New-LocalUser `
+              -Name "runneradmin" `
+              -Password $password `
+              -PasswordNeverExpires `
+              -AccountNeverExpires
+
+            Write-Host "Usuário runneradmin criado."
+
+          }
+          else {
+
+            Set-LocalUser `
+              -Name "runneradmin" `
+              -Password $password
+
+            Write-Host "Senha do runneradmin atualizada."
+          }
+
+          Add-LocalGroupMember `
+            -Group "Remote Desktop Users" `
+            -Member "runneradmin" `
+            -ErrorAction SilentlyContinue
+
+          Write-Host "Usuário autorizado para RDP."
+
+
+      # ==========================================
+      # INSTALAR TAILSCALE
+      # ==========================================
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+
+          Write-Host "Instalando Tailscale..."
+
+          $installer = "$env:TEMP\tailscale.msi"
+
+          Invoke-WebRequest `
+            "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" `
+            -OutFile $installer
+
+          Start-Process `
+            msiexec.exe `
+            -ArgumentList "/i `"$installer`" /quiet /norestart" `
+            -Wait
+
+          Remove-Item `
+            $installer `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          Write-Host "Tailscale instalado."
+
+
+      # ==========================================
+      # CONECTAR TAILSCALE
+      # ==========================================
+      - name: Connect Tailscale
+        shell: pwsh
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+        run: |
+
+          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTH_KEY)) {
+            throw "Configure o Secret TAILSCALE_AUTH_KEY no GitHub."
+          }
+
+          $tailscale = "C:\Program Files\Tailscale\tailscale.exe"
+
+          if (!(Test-Path $tailscale)) {
+            throw "tailscale.exe não foi encontrado."
+          }
+
+          & $tailscale up `
+            --authkey="$env:TAILSCALE_AUTH_KEY" `
+            --hostname="andos-${{ github.run_id }}"
+
+          Start-Sleep -Seconds 10
+
+          $ip = (
+            & $tailscale ip -4 |
             Select-Object -First 1
-        }
+          ).Trim()
 
-        if(!$asset){
-          throw "Não encontrei o instalador MSI AMD64 do Sunshine."
-        }
+          if ([string]::IsNullOrWhiteSpace($ip)) {
+            throw "Não foi possível obter o IP Tailscale."
+          }
 
-        Write-Host "Versão encontrada:"
-        Write-Host $release.tag_name
+          "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
-        Write-Host "Arquivo:"
-        Write-Host $asset.name
-
-        $sunshineInstaller="$env:TEMP\sunshine.msi"
-
-        Invoke-WebRequest `
-          -Uri $asset.browser_download_url `
-          -OutFile $sunshineInstaller
-
-        Write-Host "Instalando Sunshine..."
-
-        Start-Process `
-          msiexec.exe `
-          -ArgumentList "/i `"$sunshineInstaller`" /qn /norestart" `
-          -Wait
-
-        Remove-Item `
-          $sunshineInstaller `
-          -Force `
-          -ErrorAction SilentlyContinue
-
-        Write-Host "Sunshine instalado."
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "       AnDos PC VIRTUAL"
+          Write-Host "======================================"
+          Write-Host ""
+          Write-Host "IP Tailscale: $ip"
+          Write-Host "Usuário:      runneradmin"
+          Write-Host "Porta RDP:    3389"
+          Write-Host ""
+          Write-Host "======================================"
 
 
-    # ==========================================
-    # CONFIGURAR SUNSHINE
-    # ==========================================
-    - name: Configure Sunshine
-      shell: pwsh
-      env:
-        SUNSHINE_USER: ${{ secrets.SUNSHINE_USER }}
-        SUNSHINE_PASS: ${{ secrets.SUNSHINE_PASSWORD }}
+      # ==========================================
+      # TESTAR RDP
+      # ==========================================
+      - name: Test RDP
+        shell: pwsh
+        run: |
 
-      run: |
+          Write-Host "Testando porta RDP..."
 
-        $sunshineDir="C:\Program Files\Sunshine"
+          $result = Test-NetConnection `
+            -ComputerName "127.0.0.1" `
+            -Port 3389 `
+            -WarningAction SilentlyContinue
 
-        $sunshineExe="$sunshineDir\sunshine.exe"
+          if ($result.TcpTestSucceeded) {
 
-        if(!(Test-Path $sunshineExe)){
-          throw "sunshine.exe não encontrado."
-        }
-
-        Write-Host "Sunshine encontrado."
-
-        # Firewall
-        Write-Host "Configurando firewall..."
-
-        $ports=@(
-          47984,
-          47989,
-          47990,
-          48010
-        )
-
-        foreach($port in $ports){
-
-          New-NetFirewallRule `
-            -DisplayName "Sunshine TCP $port" `
-            -Direction Inbound `
-            -Protocol TCP `
-            -LocalPort $port `
-            -Action Allow `
-            -ErrorAction SilentlyContinue
-        }
-
-        $udpPorts=@(
-          47998,
-          47999,
-          48000,
-          48002
-        )
-
-        foreach($port in $udpPorts){
-
-          New-NetFirewallRule `
-            -DisplayName "Sunshine UDP $port" `
-            -Direction Inbound `
-            -Protocol UDP `
-            -LocalPort $port `
-            -Action Allow `
-            -ErrorAction SilentlyContinue
-        }
-
-        # Criar diretório de configuração
-        $configDir="$sunshineDir\config"
-
-        New-Item `
-          $configDir `
-          -ItemType Directory `
-          -Force |
-          Out-Null
-
-        Write-Host "Configuração preparada."
-
-
-    # ==========================================
-    # SUNSHINE SERVICE
-    # ==========================================
-    - name: Start Sunshine
-      shell: pwsh
-      run: |
-
-        Write-Host "Procurando serviço Sunshine..."
-
-        $service=Get-Service `
-          -Name "Sunshine" `
-          -ErrorAction SilentlyContinue
-
-        if($service){
-
-          Write-Host "Serviço encontrado."
-
-          Set-Service `
-            -Name "Sunshine" `
-            -StartupType Automatic
-
-          Start-Service `
-            -Name "Sunshine" `
-            -ErrorAction SilentlyContinue
-
-        }else{
-
-          Write-Host "Serviço não encontrado."
-
-          $exe="C:\Program Files\Sunshine\sunshine.exe"
-
-          if(Test-Path $exe){
-
-            Start-Process `
-              $exe `
-              -WindowStyle Hidden
-
-          }else{
-
-            throw "Sunshine não foi encontrado."
+            Write-Host "RDP está funcionando."
 
           }
-        }
+          else {
 
-        Start-Sleep -Seconds 15
+            Write-Host "AVISO: porta RDP ainda não respondeu."
 
-        Write-Host ""
-        Write-Host "============================"
-        Write-Host " SUNSHINE"
-        Write-Host "============================"
-        Write-Host "Web UI: https://127.0.0.1:47990"
-        Write-Host "============================"
+          }
 
 
-    # ==========================================
-    # TESTAR SUNSHINE
-    # ==========================================
-    - name: Test Sunshine
-      shell: pwsh
-      run: |
+      # ==========================================
+      # INFORMAÇÕES DE CONEXÃO
+      # ==========================================
+      - name: Connection Information
+        shell: pwsh
+        run: |
 
-        Start-Sleep -Seconds 5
-
-        $tcp=Test-NetConnection `
-          -ComputerName 127.0.0.1 `
-          -Port 47990 `
-          -WarningAction SilentlyContinue
-
-        if($tcp.TcpTestSucceeded){
-
-          Write-Host "Sunshine Web UI está respondendo."
-
-        }else{
-
-          Write-Host "Aviso: Web UI ainda não respondeu."
-          Write-Host "O serviço pode estar iniciando."
-
-        }
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "       AN DOS PC VIRTUAL ONLINE"
+          Write-Host "=========================================="
+          Write-Host ""
+          Write-Host "RDP"
+          Write-Host "------------------------------------------"
+          Write-Host "IP:       $env:TAILSCALE_IP"
+          Write-Host "Porta:    3389"
+          Write-Host "Usuário:  runneradmin"
+          Write-Host ""
+          Write-Host "Abra o Windows App / Microsoft Remote"
+          Write-Host "Desktop e use o IP acima."
+          Write-Host ""
+          Write-Host "=========================================="
 
 
-    # ==========================================
-    # INFORMAÇÕES FINAIS
-    # ==========================================
-    - name: Connection Information
-      shell: pwsh
-      run: |
+      # ==========================================
+      # MANTER RUNNER ATIVO
+      # ==========================================
+      - name: Keep Alive
+        shell: pwsh
+        run: |
 
-        $ts="C:\Program Files\Tailscale\tailscale.exe"
+          Write-Host ""
+          Write-Host "================================"
+          Write-Host "     AnDos PC VIRTUAL ATIVO"
+          Write-Host "================================"
+          Write-Host "RDP:       ATIVO"
+          Write-Host "Tailscale: ATIVO"
+          Write-Host "================================"
+          Write-Host ""
 
-        $ip=(& $ts ip -4 |
-          Select-Object -First 1).Trim()
+          while ($true) {
 
-        Write-Host ""
-        Write-Host "=========================================="
-        Write-Host "       AnDOS PC VIRTUAL ONLINE"
-        Write-Host "=========================================="
-        Write-Host ""
-        Write-Host "Moonlight / Sunshine:"
-        Write-Host "IP Tailscale: $ip"
-        Write-Host ""
-        Write-Host "Sunshine Web UI:"
-        Write-Host "https://${ip}:47990"
-        Write-Host ""
-        Write-Host "RDP:"
-        Write-Host "IP: $ip"
-        Write-Host "PORT: 3389"
-        Write-Host "USER: runneradmin"
-        Write-Host ""
-        Write-Host "Sunshine: INSTALADO"
-        Write-Host "Steam: INSTALADO"
-        Write-Host "Chrome: INSTALADO"
-        Write-Host ""
-        Write-Host "=========================================="
+            Write-Host "PC ativo - $(Get-Date)"
 
-
-    # ==========================================
-    # KEEP ALIVE
-    # ==========================================
-    - name: Keep Alive
-      shell: pwsh
-      run: |
-
-        Write-Host ""
-        Write-Host "================================"
-        Write-Host "     AnDos PC VIRTUAL ATIVO"
-        Write-Host "================================"
-        Write-Host "Steam: OK"
-        Write-Host "Chrome: OK"
-        Write-Host "Sunshine: OK"
-        Write-Host "Tailscale: OK"
-        Write-Host "Unity Hub: REMOVIDO"
-        Write-Host "================================"
-        Write-Host ""
-
-        while($true){
-
-          Write-Host "PC ativo - $(Get-Date)"
-
-          Start-Sleep -Seconds 60
-
-        }
+            Start-Sleep -Seconds 60
+          }
