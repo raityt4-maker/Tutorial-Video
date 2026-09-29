@@ -156,89 +156,6 @@ jobs:
           Write-Host "Porta RDP:    3389"
           Write-Host "======================================"
 
-      - name: Install Luanti
-        shell: pwsh
-        run: |
-          Write-Host "======================================"
-          Write-Host "       INSTALANDO LUANTI"
-          Write-Host "======================================"
-
-          $url = "https://github.com/luanti-org/luanti/releases/download/5.17.0/luanti-5.17.0-win64.zip"
-          $zip = "$env:TEMP\luanti.zip"
-          $installDir = "C:\Luanti"
-
-          Write-Host "Baixando Luanti..."
-
-          Invoke-WebRequest `
-            -Uri $url `
-            -OutFile $zip `
-            -UseBasicParsing
-
-          if (!(Test-Path $zip)) {
-            throw "Não foi possível baixar o Luanti."
-          }
-
-          Write-Host "Extraindo arquivos..."
-
-          if (Test-Path $installDir) {
-            Remove-Item `
-              $installDir `
-              -Recurse `
-              -Force
-          }
-
-          New-Item `
-            -ItemType Directory `
-            -Path $installDir `
-            -Force | Out-Null
-
-          Expand-Archive `
-            -Path $zip `
-            -DestinationPath $installDir `
-            -Force
-
-          Remove-Item `
-            $zip `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          $luanti = Get-ChildItem `
-            $installDir `
-            -Filter "luanti.exe" `
-            -Recurse `
-            -ErrorAction SilentlyContinue |
-            Select-Object -First 1 -ExpandProperty FullName
-
-          if ([string]::IsNullOrWhiteSpace($luanti)) {
-            throw "luanti.exe não foi encontrado depois da extração."
-          }
-
-          "LUANTI_EXE=$luanti" >> $env:GITHUB_ENV
-
-          Write-Host ""
-          Write-Host "Luanti instalado com sucesso!"
-          Write-Host "Executável: $luanti"
-
-      - name: Create Luanti Desktop Shortcut
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:LUANTI_EXE)) {
-            throw "LUANTI_EXE não foi definido."
-          }
-
-          $desktop = [Environment]::GetFolderPath("Desktop")
-          $shortcutPath = Join-Path $desktop "Luanti.lnk"
-
-          $shell = New-Object -ComObject WScript.Shell
-
-          $shortcut = $shell.CreateShortcut($shortcutPath)
-          $shortcut.TargetPath = $env:LUANTI_EXE
-          $shortcut.WorkingDirectory = Split-Path $env:LUANTI_EXE
-          $shortcut.Description = "Luanti"
-          $shortcut.Save()
-
-          Write-Host "Atalho criado na Área de Trabalho."
-
       - name: Test RDP
         shell: pwsh
         run: |
@@ -268,11 +185,6 @@ jobs:
           Write-Host "Porta:    3389"
           Write-Host "Usuário:  runneradmin"
           Write-Host ""
-          Write-Host "JOGO"
-          Write-Host "------------------------------------------"
-          Write-Host "Luanti instalado"
-          Write-Host "Atalho disponível na Área de Trabalho"
-          Write-Host ""
           Write-Host "=========================================="
 
       - name: Keep Alive
@@ -284,7 +196,6 @@ jobs:
           Write-Host "================================"
           Write-Host "RDP:       ATIVO"
           Write-Host "Tailscale: ATIVO"
-          Write-Host "Luanti:    INSTALADO"
           Write-Host "================================"
           Write-Host ""
 
