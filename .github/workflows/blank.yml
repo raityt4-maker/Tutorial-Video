@@ -21,53 +21,104 @@ jobs:
           Write-Host "      CONFIGURANDO RDP"
           Write-Host "======================================"
 
-          # Ativar conexões RDP
+          # Ativar RDP
           Set-ItemProperty `
             -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
             -Name "fDenyTSConnections" `
             -Value 0
 
-          # Permitir RDP pelo Firewall
+          # Ativar regras do Firewall para RDP
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          # Garantir que o serviço RDP esteja ativo
-          Set-Service -Name TermService -StartupType Automatic
-          Start-Service -Name TermService
+          # Iniciar serviço RDP
+          Set-Service `
+            -Name "TermService" `
+            -StartupType Automatic
 
-          # Usuário usado para conexão
+          Start-Service `
+            -Name "TermService"
+
+          # ======================================================
+          # USUÁRIO
+          # ======================================================
+
           $username = "AnDos"
+          $password = "AnDosPC2026!"
 
-          # Senha definida para esta sessão
-          $password = "AnDos@2026PC!"
+          $securePassword = ConvertTo-SecureString `
+            $password `
+            -AsPlainText `
+            -Force
 
-          # Criar usuário se não existir
-          if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
-              $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          # ======================================================
+          # CRIAR OU ATUALIZAR USUÁRIO
+          # ======================================================
+
+          $existingUser = Get-LocalUser `
+            -Name $username `
+            -ErrorAction SilentlyContinue
+
+          if ($null -eq $existingUser) {
+
+              Write-Host "Criando usuário $username..."
 
               New-LocalUser `
                 -Name $username `
                 -Password $securePassword `
                 -FullName "AnDos PC" `
-                -Description "Conta do AnDos PC Virtual"
+                -Description "AnDos PC Virtual"
+
+          }
+          else {
+
+              Write-Host "Usuário já existe."
+              Write-Host "Atualizando senha..."
+
+              Set-LocalUser `
+                -Name $username `
+                -Password $securePassword
           }
 
-          # Adicionar ao grupo de Administradores
+          # ======================================================
+          # GRUPOS
+          # ======================================================
+
           Add-LocalGroupMember `
             -Group "Administrators" `
             -Member $username `
             -ErrorAction SilentlyContinue
 
-          # Adicionar ao grupo de usuários de RDP
           Add-LocalGroupMember `
             -Group "Remote Desktop Users" `
             -Member $username `
             -ErrorAction SilentlyContinue
 
+          # ======================================================
+          # GARANTIR QUE A CONTA NÃO ESTEJA DESABILITADA
+          # ======================================================
+
+          Enable-LocalUser `
+            -Name $username
+
           Write-Host ""
-          Write-Host "RDP configurado."
-          Write-Host "Usuário: $username"
-          Write-Host "Senha: $password"
-          Write-Host "Porta: 3389"
+          Write-Host "======================================"
+          Write-Host "RDP CONFIGURADO"
+          Write-Host "======================================"
+
+          Write-Host ""
+          Write-Host "USUARIO:"
+          Write-Host $username
+
+          Write-Host ""
+          Write-Host "SENHA:"
+          Write-Host $password
+
+          Write-Host ""
+          Write-Host "PORTA:"
+          Write-Host "3389"
+
+          Write-Host ""
+          Write-Host "======================================"
 
 
       # ============================================================
