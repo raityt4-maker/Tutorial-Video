@@ -1,4 +1,4 @@
-    - name: Install AnDos PlayStation Menu
+    - name: AnDos PlayStation
       shell: pwsh
       run: |
         Write-Host "=== INSTALLING ANDOS PLAYSTATION ===" -ForegroundColor Cyan
