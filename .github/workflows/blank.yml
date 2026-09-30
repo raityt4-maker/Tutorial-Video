@@ -1,205 +1,179 @@
-name: AnDos PC VIRTUAL
 
-on:
-  workflow_dispatch:
-    inputs:
-      instance_number:
-        description: "Instance"
-        required: true
-        default: "1"
+    - name: Install AnDos PlayStation Menu
+      shell: pwsh
+      run: |
+        Write-Host "=== INSTALLING ANDOS PLAYSTATION ===" -ForegroundColor Cyan
 
-jobs:
-  deploy:
-    runs-on: windows-2022
-    timeout-minutes: 360
+        $menuDir = "C:\AnDos"
+        New-Item -ItemType Directory -Path $menuDir -Force | Out-Null
 
-    steps:
+        $html = @'
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>AnDos PlayStation</title>
+        <style>
+        *{box-sizing:border-box}
+        body{
+          margin:0;color:white;font-family:Arial,sans-serif;
+          background:radial-gradient(ellipse at 70% 15%,
+          #2462b3,#102b5d 48%,#061329);
+          min-height:100vh;padding:35px 5%;
+        }
+        header{display:flex;justify-content:space-between;align-items:center}
+        .logo{font-size:25px;font-weight:bold;letter-spacing:2px}
+        .logo span{color:#70baff}
+        h1{font-size:38px;font-weight:400;margin:55px 0 8px}
+        p{color:#c4d8f5}
+        nav{display:flex;gap:25px;margin:35px 0 28px;
+          border-bottom:1px solid #ffffff40;padding-bottom:15px}
+        nav button{background:none;border:0;color:#bdd2ef;
+          font-size:16px;cursor:pointer}
+        nav button:hover{color:white}
+        .games{display:grid;grid-template-columns:
+          repeat(auto-fit,minmax(160px,1fr));gap:18px}
+        .game{background:#ffffff12;border:2px solid transparent;
+          border-radius:14px;overflow:hidden;cursor:pointer}
+        .game:hover{border-color:#70baff;transform:translateY(-3px)}
+        .cover{height:145px;display:grid;place-items:center;
+          font-size:48px;background:linear-gradient(135deg,#2169b8,#111d46)}
+        .game:nth-child(2) .cover{background:linear-gradient(135deg,#7242a5,#28265c)}
+        .game:nth-child(3) .cover{background:linear-gradient(135deg,#16878b,#163454)}
+        .game:nth-child(4) .cover{background:linear-gradient(135deg,#9b5c31,#45305d)}
+        .info{padding:14px}
+        .info small{display:block;color:#b8cde9;margin-top:6px}
+        .panel{margin-top:30px;padding:20px;background:#ffffff12;
+          border:1px solid #ffffff30;border-radius:14px}
+        .panel button{background:#2877c9;color:white;border:0;
+          border-radius:9px;padding:13px 22px;cursor:pointer}
+        .page{display:none}
+        .page.active{display:block}
+        </style>
+        </head>
+        <body>
+        <header>
+          <div class="logo">AnDos <span>PLAY</span></div>
+          <div id="clock">00:00</div>
+        </header>
 
-      - name: Configure Windows
-        shell: pwsh
-        run: |
-          Write-Host "Configurando Windows..."
+        <h1>Bem-vindo de volta!</h1>
+        <p>Seu espaço de jogos está pronto.</p>
 
-          $advanced = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        <nav>
+          <button onclick="page('home')">Início</button>
+          <button onclick="page('library')">Biblioteca</button>
+          <button onclick="page('apps')">Aplicativos</button>
+          <button onclick="page('settings')">Configurações</button>
+        </nav>
 
-          New-Item $advanced -Force | Out-Null
+        <section id="home" class="page active">
+          <h2>Seus jogos</h2>
+          <div class="games">
+            <div class="game" onclick="openGame('Roblox','https://www.roblox.com/')">
+              <div class="cover">🎮</div>
+              <div class="info"><b>Roblox</b><small>Jogar online</small></div>
+            </div>
+            <div class="game" onclick="openGame('Minecraft','https://www.minecraft.net/')">
+              <div class="cover">🧱</div>
+              <div class="info"><b>Minecraft</b><small>Site oficial</small></div>
+            </div>
+            <div class="game" onclick="openGame('Fortnite','https://www.fortnite.com/')">
+              <div class="cover">⚔️</div>
+              <div class="info"><b>Fortnite</b><small>Site oficial</small></div>
+            </div>
+            <div class="game" onclick="openGame('Steam','https://store.steampowered.com/')">
+              <div class="cover">🚀</div>
+              <div class="info"><b>Steam</b><small>Loja de jogos</small></div>
+            </div>
+          </div>
+          <div class="panel">
+            <h2 id="chosen">Selecione um jogo</h2>
+            <p id="description">Clique em um cartão para abrir.</p>
+            <button onclick="launch()">ABRIR JOGO</button>
+          </div>
+        </section>
 
-          Set-ItemProperty `
-            $advanced `
-            TaskbarAl `
-            0 `
-            -ErrorAction SilentlyContinue
+        <section id="library" class="page">
+          <h2>Biblioteca</h2>
+          <p>Selecione um jogo na tela inicial.</p>
+        </section>
 
-          Write-Host "Windows configurado."
+        <section id="apps" class="page">
+          <h2>Aplicativos</h2>
+          <div class="games">
+            <div class="game" onclick="openGame('YouTube','https://youtube.com/')">
+              <div class="cover">▶️</div>
+              <div class="info"><b>YouTube</b><small>Vídeos</small></div>
+            </div>
+            <div class="game" onclick="openGame('Discord','https://discord.com/app')">
+              <div class="cover">💬</div>
+              <div class="info"><b>Discord</b><small>Comunidade</small></div>
+            </div>
+          </div>
+        </section>
 
-      - name: Enable RDP
-        shell: pwsh
-        run: |
-          Write-Host "Ativando RDP..."
+        <section id="settings" class="page">
+          <h2>Configurações</h2>
+          <div class="panel">
+            <p>Sistema: AnDos Play</p>
+            <p>Ambiente: Windows virtual</p>
+            <p>Status: Online</p>
+            <button onclick="document.documentElement.requestFullscreen()">
+              TELA CHEIA
+            </button>
+          </div>
+        </section>
 
-          Set-ItemProperty `
-            "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
-            -Name "fDenyTSConnections" `
-            -Value 0
+        <script>
+        let chosenUrl="";
+        function page(id){
+          document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+          document.getElementById(id).classList.add('active');
+        }
+        function openGame(name,url){
+          chosenUrl=url;
+          document.getElementById('chosen').textContent=name;
+          document.getElementById('description').textContent='Selecionado: '+name;
+        }
+        function launch(){
+          if(chosenUrl) window.open(chosenUrl,'_blank');
+          else alert('Selecione um jogo primeiro!');
+        }
+        function clock(){
+          document.getElementById('clock').textContent=
+            new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+        }
+        clock();setInterval(clock,1000);
+        </script>
+        </body>
+        </html>
+        '@
 
-          Set-ItemProperty `
-            "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
-            -Name "UserAuthentication" `
-            -Value 1
+        $htmlPath = Join-Path $menuDir "index.html"
+        Set-Content -Path $htmlPath -Value $html -Encoding UTF8
 
-          Enable-NetFirewallRule `
-            -DisplayGroup "Remote Desktop"
+        $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+        New-Item -ItemType Directory -Path $startup -Force | Out-Null
 
-          Write-Host "RDP ativado."
+        $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+        if (-not (Test-Path $chrome)) {
+          $chrome = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+        }
+        if (-not (Test-Path $chrome)) {
+          throw "Google Chrome não encontrado."
+        }
 
-      - name: Create RDP User
-        shell: pwsh
-        env:
-          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        $launcher = Join-Path $menuDir "start-menu.cmd"
+        @"
+        @echo off
+        start "" "$chrome" --kiosk "file:///C:/AnDos/index.html"
+        "@ | Set-Content -Path $launcher -Encoding ASCII
 
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:RDP_PASSWORD)) {
-            throw "Configure o Secret RDP_PASSWORD no GitHub."
-          }
+        $shortcut = Join-Path $startup "AnDos PlayStation.cmd"
+        Copy-Item $launcher $shortcut -Force
 
-          $password = ConvertTo-SecureString `
-            $env:RDP_PASSWORD `
-            -AsPlainText `
-            -Force
-
-          $user = Get-LocalUser `
-            -Name "runneradmin" `
-            -ErrorAction SilentlyContinue
-
-          if ($null -eq $user) {
-            New-LocalUser `
-              -Name "runneradmin" `
-              -Password $password `
-              -PasswordNeverExpires `
-              -AccountNeverExpires
-          }
-          else {
-            Set-LocalUser `
-              -Name "runneradmin" `
-              -Password $password
-          }
-
-          Add-LocalGroupMember `
-            -Group "Remote Desktop Users" `
-            -Member "runneradmin" `
-            -ErrorAction SilentlyContinue
-
-          Write-Host "Usuário RDP configurado."
-
-      - name: Install Tailscale
-        shell: pwsh
-        run: |
-          Write-Host "Instalando Tailscale..."
-
-          $installer = "$env:TEMP\tailscale.msi"
-
-          Invoke-WebRequest `
-            "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" `
-            -OutFile $installer
-
-          Start-Process `
-            msiexec.exe `
-            -ArgumentList "/i `"$installer`" /quiet /norestart" `
-            -Wait
-
-          Remove-Item `
-            $installer `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          Write-Host "Tailscale instalado."
-
-      - name: Connect Tailscale
-        shell: pwsh
-        env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
-
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTH_KEY)) {
-            throw "Configure o Secret TAILSCALE_AUTH_KEY no GitHub."
-          }
-
-          $tailscale = "C:\Program Files\Tailscale\tailscale.exe"
-
-          if (!(Test-Path $tailscale)) {
-            throw "tailscale.exe não foi encontrado."
-          }
-
-          & $tailscale up `
-            --authkey="$env:TAILSCALE_AUTH_KEY" `
-            --hostname="andos-${{ github.run_id }}"
-
-          Start-Sleep -Seconds 10
-
-          $ip = (
-            & $tailscale ip -4 |
-            Select-Object -First 1
-          ).Trim()
-
-          if ([string]::IsNullOrWhiteSpace($ip)) {
-            throw "Não foi possível obter o IP Tailscale."
-          }
-
-          "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
-
-          Write-Host ""
-          Write-Host "======================================"
-          Write-Host "       AnDos PC VIRTUAL"
-          Write-Host "======================================"
-          Write-Host "IP Tailscale: $ip"
-          Write-Host "Usuário:      runneradmin"
-          Write-Host "Porta RDP:    3389"
-          Write-Host "======================================"
-
-      - name: Test RDP
-        shell: pwsh
-        run: |
-          $result = Test-NetConnection `
-            -ComputerName "127.0.0.1" `
-            -Port 3389 `
-            -WarningAction SilentlyContinue
-
-          if ($result.TcpTestSucceeded) {
-            Write-Host "RDP está funcionando."
-          }
-          else {
-            Write-Host "AVISO: porta RDP ainda não respondeu."
-          }
-
-      - name: Connection Information
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host "       AN DOS PC VIRTUAL ONLINE"
-          Write-Host "=========================================="
-          Write-Host ""
-          Write-Host "RDP"
-          Write-Host "------------------------------------------"
-          Write-Host "IP:       $env:TAILSCALE_IP"
-          Write-Host "Porta:    3389"
-          Write-Host "Usuário:  runneradmin"
-          Write-Host ""
-          Write-Host "=========================================="
-
-      - name: Keep Alive
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "================================"
-          Write-Host "     AnDos PC VIRTUAL ATIVO"
-          Write-Host "================================"
-          Write-Host "RDP:       ATIVO"
-          Write-Host "Tailscale: ATIVO"
-          Write-Host "================================"
-          Write-Host ""
-
-          while ($true) {
-            Write-Host "PC ativo - $(Get-Date)"
-            Start-Sleep -Seconds 60
-          }
+        Write-Host "Menu criado em $htmlPath" -ForegroundColor Green
+        Write-Host "Inicialização configurada para runneradmin." -ForegroundColor Green
+        
