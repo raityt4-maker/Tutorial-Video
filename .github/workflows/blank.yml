@@ -1,4 +1,4 @@
-    - name: AnDos PlayStation
+    - name: AnDos PC VIRTUAL
       shell: pwsh
       run: |
         Write-Host "=== INSTALLING ANDOS PLAYSTATION ===" -ForegroundColor Cyan
