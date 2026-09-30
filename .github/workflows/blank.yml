@@ -1,4 +1,3 @@
-
 name: AnDos PC VIRTUAL
 
 on:
@@ -10,189 +9,1113 @@ jobs:
     timeout-minutes: 360
 
     steps:
+
+      # ============================================================
+      # 1. CONFIGURAR RDP
+      # ============================================================
+      - name: Configurar RDP
+        shell: pwsh
+        run: |
+          Write-Host "======================================"
+          Write-Host "      AnDos PC VIRTUAL"
+          Write-Host "      CONFIGURANDO RDP"
+          Write-Host "======================================"
+
+          # Ativar conexões RDP
+          Set-ItemProperty `
+            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" `
+            -Value 0
+
+          # Permitir RDP pelo Firewall
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          # Garantir que o serviço RDP esteja ativo
+          Set-Service -Name TermService -StartupType Automatic
+          Start-Service -Name TermService
+
+          # Usuário usado para conexão
+          $username = "AnDos"
+
+          # Senha definida para esta sessão
+          $password = "AnDos@2026PC!"
+
+          # Criar usuário se não existir
+          if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
+              $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+
+              New-LocalUser `
+                -Name $username `
+                -Password $securePassword `
+                -FullName "AnDos PC" `
+                -Description "Conta do AnDos PC Virtual"
+          }
+
+          # Adicionar ao grupo de Administradores
+          Add-LocalGroupMember `
+            -Group "Administrators" `
+            -Member $username `
+            -ErrorAction SilentlyContinue
+
+          # Adicionar ao grupo de usuários de RDP
+          Add-LocalGroupMember `
+            -Group "Remote Desktop Users" `
+            -Member $username `
+            -ErrorAction SilentlyContinue
+
+          Write-Host ""
+          Write-Host "RDP configurado."
+          Write-Host "Usuário: $username"
+          Write-Host "Senha: $password"
+          Write-Host "Porta: 3389"
+
+
+      # ============================================================
+      # 2. CONECTAR AO TAILSCALE
+      # ============================================================
+      - name: Conectar Tailscale
+        uses: tailscale/github-action@v4.1.3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          version: latest
+
+
+      # ============================================================
+      # 3. DESCOBRIR IP TAILSCALE
+      # ============================================================
+      - name: Mostrar dados de conexão
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "       AnDos PC VIRTUAL ONLINE"
+          Write-Host "======================================"
+
+          Start-Sleep -Seconds 5
+
+          $tailscalePath = "C:\Program Files\Tailscale\tailscale.exe"
+
+          if (Test-Path $tailscalePath) {
+
+              $ip = & $tailscalePath ip -4
+
+              Write-Host ""
+              Write-Host "IP TAILSCALE:"
+              Write-Host $ip
+
+              Write-Host ""
+              Write-Host "USUARIO:"
+              Write-Host "AnDos"
+
+              Write-Host ""
+              Write-Host "SENHA:"
+              Write-Host "AnDos@2026PC!"
+
+              Write-Host ""
+              Write-Host "PORTA:"
+              Write-Host "3389"
+
+              Write-Host ""
+              Write-Host "======================================"
+              Write-Host "CONEXAO RDP:"
+              Write-Host "$ip`:3389"
+              Write-Host "======================================"
+
+          } else {
+
+              Write-Host "ERRO: Tailscale nao encontrado."
+
+          }
+
+
+      # ============================================================
+      # 4. CRIAR MENU AnDos PLAY
+      # ============================================================
       - name: Criar menu AnDos estilo PS5
         shell: pwsh
         run: |
+
           $menuDir = "C:\AnDos"
-          New-Item -ItemType Directory -Path $menuDir -Force | Out-Null
+
+          New-Item `
+            -ItemType Directory `
+            -Path $menuDir `
+            -Force | Out-Null
+
 
           $html = @'
           <!DOCTYPE html>
+
           <html lang="pt-BR">
+
           <head>
+
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+            <meta
+              name="viewport"
+              content="width=device-width, initial-scale=1.0"
+            >
+
             <title>AnDos Play</title>
+
+
             <style>
-              * { box-sizing: border-box; }
+
+              * {
+                box-sizing: border-box;
+              }
+
+
               body {
+
                 margin: 0;
+
                 color: white;
+
                 font-family: Arial, sans-serif;
+
                 background:
-                  radial-gradient(ellipse at 70% 15%, #264b82 0%, transparent 42%),
-                  linear-gradient(135deg, #101a30, #07101f 70%);
+
+                  radial-gradient(
+                    ellipse at 70% 15%,
+                    #264b82 0%,
+                    transparent 42%
+                  ),
+
+                  linear-gradient(
+                    135deg,
+                    #101a30,
+                    #07101f 70%
+                  );
+
                 min-height: 100vh;
+
                 padding: 24px;
+
               }
+
+
               header {
+
                 display: flex;
+
                 align-items: center;
+
                 justify-content: space-between;
+
                 gap: 12px;
-                border-bottom: 1px solid #ffffff35;
-                padding: 8px 4px 18px;
+
+                border-bottom:
+                  1px solid #ffffff35;
+
+                padding:
+                  8px 4px 18px;
+
               }
-              .logo { font-size: 25px; font-weight: bold; letter-spacing: 2px; }
-              .logo span { color: #70baff; }
-              #clock { color: #dceaff; font-size: 18px; }
-              h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 400; margin: 34px 0 8px; }
-              p { color: #c4d4ed; margin-top: 0; }
-              nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 20px; }
+
+
+              .logo {
+
+                font-size: 25px;
+
+                font-weight: bold;
+
+                letter-spacing: 2px;
+
+              }
+
+
+              .logo span {
+
+                color: #70baff;
+
+              }
+
+
+              #clock {
+
+                color: #dceaff;
+
+                font-size: 18px;
+
+              }
+
+
+              h1 {
+
+                font-size:
+                  clamp(28px, 5vw, 42px);
+
+                font-weight: 400;
+
+                margin:
+                  34px 0 8px;
+
+              }
+
+
+              p {
+
+                color: #c4d4ed;
+
+                margin-top: 0;
+
+              }
+
+
+              nav {
+
+                display: flex;
+
+                flex-wrap: wrap;
+
+                gap: 10px;
+
+                margin:
+                  26px 0 20px;
+
+              }
+
+
               nav button {
-                color: white; background: #ffffff14; border: 1px solid #ffffff2b;
-                border-radius: 10px; padding: 12px 17px; font-size: 15px; cursor: pointer;
+
+                color: white;
+
+                background: #ffffff14;
+
+                border:
+                  1px solid #ffffff2b;
+
+                border-radius: 10px;
+
+                padding:
+                  12px 17px;
+
+                font-size: 15px;
+
+                cursor: pointer;
+
               }
-              nav button.active, nav button:hover { background: #287bd0; }
+
+
+              nav button.active,
+              nav button:hover {
+
+                background: #287bd0;
+
+              }
+
+
               .games {
-                display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-                gap: 16px; margin-top: 18px;
+
+                display: grid;
+
+                grid-template-columns:
+                  repeat(
+                    auto-fit,
+                    minmax(145px, 1fr)
+                  );
+
+                gap: 16px;
+
+                margin-top: 18px;
+
               }
+
+
               .game {
-                background: #ffffff12; border: 1px solid #ffffff24; border-radius: 16px;
-                min-height: 150px; padding: 17px; cursor: pointer; text-align: left;
-                color: white; transition: .15s;
+
+                background: #ffffff12;
+
+                border:
+                  1px solid #ffffff24;
+
+                border-radius: 16px;
+
+                min-height: 150px;
+
+                padding: 17px;
+
+                cursor: pointer;
+
+                text-align: left;
+
+                color: white;
+
+                transition: .15s;
+
               }
-              .game:hover { transform: translateY(-3px); border-color: #70baff; background: #ffffff20; }
+
+
+              .game:hover {
+
+                transform:
+                  translateY(-3px);
+
+                border-color:
+                  #70baff;
+
+                background:
+                  #ffffff20;
+
+              }
+
+
               .cover {
-                height: 75px; display: grid; place-items: center; border-radius: 11px;
-                font-size: 36px; margin-bottom: 13px; background: linear-gradient(135deg, #2d79d5, #182c5b);
+
+                height: 75px;
+
+                display: grid;
+
+                place-items: center;
+
+                border-radius: 11px;
+
+                font-size: 36px;
+
+                margin-bottom: 13px;
+
+                background:
+                  linear-gradient(
+                    135deg,
+                    #2d79d5,
+                    #182c5b
+                  );
+
               }
-              .game:nth-child(2) .cover { background: linear-gradient(135deg, #4b965e, #183e2b); }
-              .game:nth-child(3) .cover { background: linear-gradient(135deg, #8b55d5, #36205e); }
-              .game:nth-child(4) .cover { background: linear-gradient(135deg, #d16a32, #5b281b); }
-              .game:nth-child(5) .cover { background: linear-gradient(135deg, #555e70, #202838); }
-              .game:nth-child(6) .cover { background: linear-gradient(135deg, #4b72d1, #24335f); }
-              .game strong { font-size: 16px; }
-              .page { display: none; }
-              .page.active { display: block; }
+
+
+              .game:nth-child(2) .cover {
+
+                background:
+                  linear-gradient(
+                    135deg,
+                    #4b965e,
+                    #183e2b
+                  );
+
+              }
+
+
+              .game:nth-child(3) .cover {
+
+                background:
+                  linear-gradient(
+                    135deg,
+                    #8b55d5,
+                    #36205e
+                  );
+
+              }
+
+
+              .game:nth-child(4) .cover {
+
+                background:
+                  linear-gradient(
+                    135deg,
+                    #d16a32,
+                    #5b281b
+                  );
+
+              }
+
+
+              .game:nth-child(5) .cover {
+
+                background:
+                  linear-gradient(
+                    135deg,
+                    #555e70,
+                    #202838
+                  );
+
+              }
+
+
+              .game:nth-child(6) .cover {
+
+                background:
+                  linear-gradient(
+                    135deg,
+                    #4b72d1,
+                    #24335f
+                  );
+
+              }
+
+
+              .game strong {
+
+                font-size: 16px;
+
+              }
+
+
+              .page {
+
+                display: none;
+
+              }
+
+
+              .page.active {
+
+                display: block;
+
+              }
+
+
               .panel {
-                background: #ffffff12; border: 1px solid #ffffff24; border-radius: 15px;
-                padding: 20px; max-width: 650px; line-height: 1.6;
+
+                background: #ffffff12;
+
+                border:
+                  1px solid #ffffff24;
+
+                border-radius: 15px;
+
+                padding: 20px;
+
+                max-width: 650px;
+
+                line-height: 1.6;
+
               }
+
+
               .panel button {
-                border: 0; border-radius: 9px; padding: 12px 16px;
-                background: #287bd0; color: white; font-weight: bold; cursor: pointer;
+
+                border: 0;
+
+                border-radius: 9px;
+
+                padding:
+                  12px 16px;
+
+                background: #287bd0;
+
+                color: white;
+
+                font-weight: bold;
+
+                cursor: pointer;
+
               }
-              footer { color: #91a7c8; font-size: 12px; margin-top: 35px; }
-              @media (max-width: 480px) { body { padding: 16px; } }
+
+
+              footer {
+
+                color: #91a7c8;
+
+                font-size: 12px;
+
+                margin-top: 35px;
+
+              }
+
+
+              @media (max-width: 480px) {
+
+                body {
+                  padding: 16px;
+                }
+
+              }
+
             </style>
+
           </head>
+
+
           <body>
+
+
             <header>
-              <div class="logo">AnDos <span>PLAY</span></div>
-              <div id="clock">00:00</div>
+
+              <div class="logo">
+
+                AnDos
+                <span>PLAY</span>
+
+              </div>
+
+              <div id="clock">
+                00:00
+              </div>
+
             </header>
 
+
             <main>
-              <section id="home" class="page active">
-                <h1>Bem-vindo de volta!</h1>
-                <p>Seu espaço de jogos está pronto.</p>
+
+
+              <section
+                id="home"
+                class="page active"
+              >
+
+                <h1>
+                  Bem-vindo de volta!
+                </h1>
+
+                <p>
+                  Seu espaço de jogos está pronto.
+                </p>
+
+
                 <nav>
-                  <button class="active" onclick="showPage('home', this)">Início</button>
-                  <button onclick="showPage('library', this)">Biblioteca</button>
-                  <button onclick="showPage('apps', this)">Aplicativos</button>
-                  <button onclick="showPage('settings', this)">Configurações</button>
+
+                  <button
+                    class="active"
+                    onclick="showPage('home', this)"
+                  >
+                    Início
+                  </button>
+
+
+                  <button
+                    onclick="showPage('library', this)"
+                  >
+                    Biblioteca
+                  </button>
+
+
+                  <button
+                    onclick="showPage('apps', this)"
+                  >
+                    Aplicativos
+                  </button>
+
+
+                  <button
+                    onclick="showPage('settings', this)"
+                  >
+                    Configurações
+                  </button>
+
                 </nav>
-                <h2>Jogos e destaques</h2>
+
+
+                <h2>
+                  Jogos e destaques
+                </h2>
+
+
                 <div class="games">
-                  <button class="game" onclick="openSite('https://www.roblox.com/')">
-                    <div class="cover">🧱</div><strong>Roblox</strong>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.roblox.com/')"
+                  >
+
+                    <div class="cover">
+                      🧱
+                    </div>
+
+                    <strong>
+                      Roblox
+                    </strong>
+
                   </button>
-                  <button class="game" onclick="openSite('https://www.minecraft.net/')">
-                    <div class="cover">🌳</div><strong>Minecraft</strong>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.minecraft.net/')"
+                  >
+
+                    <div class="cover">
+                      🌳
+                    </div>
+
+                    <strong>
+                      Minecraft
+                    </strong>
+
                   </button>
-                  <button class="game" onclick="openSite('https://www.fortnite.com/')">
-                    <div class="cover">🎮</div><strong>Fortnite</strong>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.fortnite.com/')"
+                  >
+
+                    <div class="cover">
+                      🎮
+                    </div>
+
+                    <strong>
+                      Fortnite
+                    </strong>
+
                   </button>
-                  <button class="game" onclick="openSite('https://store.steampowered.com/')">
-                    <div class="cover">🚀</div><strong>Steam</strong>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://store.steampowered.com/')"
+                  >
+
+                    <div class="cover">
+                      🚀
+                    </div>
+
+                    <strong>
+                      Steam
+                    </strong>
+
                   </button>
-                  <button class="game" onclick="openSite('https://www.youtube.com/')">
-                    <div class="cover">▶️</div><strong>YouTube</strong>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.youtube.com/')"
+                  >
+
+                    <div class="cover">
+                      ▶️
+                    </div>
+
+                    <strong>
+                      YouTube
+                    </strong>
+
                   </button>
-                  <button class="game" onclick="openSite('https://discord.com/app')">
-                    <div class="cover">💬</div><strong>Discord</strong>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://discord.com/app')"
+                  >
+
+                    <div class="cover">
+                      💬
+                    </div>
+
+                    <strong>
+                      Discord
+                    </strong>
+
                   </button>
+
+
                 </div>
+
               </section>
 
-              <section id="library" class="page">
-                <h1>Biblioteca</h1>
-                <p>Escolha um atalho para abrir no navegador.</p>
+
+
+              <section
+                id="library"
+                class="page"
+              >
+
+                <h1>
+                  Biblioteca
+                </h1>
+
+                <p>
+                  Escolha um atalho para abrir no navegador.
+                </p>
+
+
                 <div class="games">
-                  <button class="game" onclick="openSite('https://www.roblox.com/')"><div class="cover">🧱</div><strong>Roblox</strong></button>
-                  <button class="game" onclick="openSite('https://www.minecraft.net/')"><div class="cover">🌳</div><strong>Minecraft</strong></button>
-                  <button class="game" onclick="openSite('https://www.fortnite.com/')"><div class="cover">🎮</div><strong>Fortnite</strong></button>
-                  <button class="game" onclick="openSite('https://store.steampowered.com/')"><div class="cover">🚀</div><strong>Steam</strong></button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.roblox.com/')"
+                  >
+
+                    <div class="cover">
+                      🧱
+                    </div>
+
+                    <strong>
+                      Roblox
+                    </strong>
+
+                  </button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.minecraft.net/')"
+                  >
+
+                    <div class="cover">
+                      🌳
+                    </div>
+
+                    <strong>
+                      Minecraft
+                    </strong>
+
+                  </button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.fortnite.com/')"
+                  >
+
+                    <div class="cover">
+                      🎮
+                    </div>
+
+                    <strong>
+                      Fortnite
+                    </strong>
+
+                  </button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://store.steampowered.com/')"
+                  >
+
+                    <div class="cover">
+                      🚀
+                    </div>
+
+                    <strong>
+                      Steam
+                    </strong>
+
+                  </button>
+
+
                 </div>
+
               </section>
 
-              <section id="apps" class="page">
-                <h1>Aplicativos</h1>
-                <p>Atalhos para serviços online.</p>
+
+
+              <section
+                id="apps"
+                class="page"
+              >
+
+                <h1>
+                  Aplicativos
+                </h1>
+
+                <p>
+                  Atalhos para serviços online.
+                </p>
+
+
                 <div class="games">
-                  <button class="game" onclick="openSite('https://www.youtube.com/')"><div class="cover">▶️</div><strong>YouTube</strong></button>
-                  <button class="game" onclick="openSite('https://discord.com/app')"><div class="cover">💬</div><strong>Discord</strong></button>
-                  <button class="game" onclick="openSite('https://www.google.com/')"><div class="cover">🌐</div><strong>Google</strong></button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.youtube.com/')"
+                  >
+
+                    <div class="cover">
+                      ▶️
+                    </div>
+
+                    <strong>
+                      YouTube
+                    </strong>
+
+                  </button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://discord.com/app')"
+                  >
+
+                    <div class="cover">
+                      💬
+                    </div>
+
+                    <strong>
+                      Discord
+                    </strong>
+
+                  </button>
+
+
+                  <button
+                    class="game"
+                    onclick="openSite('https://www.google.com/')"
+                  >
+
+                    <div class="cover">
+                      🌐
+                    </div>
+
+                    <strong>
+                      Google
+                    </strong>
+
+                  </button>
+
+
                 </div>
+
               </section>
 
-              <section id="settings" class="page">
-                <h1>Configurações</h1>
+
+
+              <section
+                id="settings"
+                class="page"
+              >
+
+                <h1>
+                  Configurações
+                </h1>
+
+
                 <div class="panel">
-                  <p><strong>AnDos Play</strong></p>
-                  <p>Interface de inicialização em estilo console. Os cartões abrem sites no navegador; eles não instalam nem iniciam jogos locais.</p>
-                  <button onclick="document.documentElement.requestFullscreen()">Ativar tela cheia</button>
+
+                  <p>
+                    <strong>
+                      AnDos Play
+                    </strong>
+                  </p>
+
+
+                  <p>
+                    Interface de inicialização
+                    em estilo console.
+                  </p>
+
+
+                  <p>
+                    Os cartões abrem serviços
+                    no navegador.
+                  </p>
+
+
+                  <button
+                    onclick="document.documentElement.requestFullscreen()"
+                  >
+                    Ativar tela cheia
+                  </button>
+
                 </div>
+
               </section>
+
+
             </main>
-            <footer>AnDos Play · Interface personalizada</footer>
+
+
+            <footer>
+              AnDos Play · Interface personalizada
+            </footer>
+
 
             <script>
+
               function showPage(id, button) {
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.getElementById(id).classList.add('active');
-                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-                if (button) button.classList.add('active');
+
+                document
+                  .querySelectorAll('.page')
+                  .forEach(
+                    p =>
+                      p.classList.remove('active')
+                  );
+
+
+                document
+                  .getElementById(id)
+                  .classList.add('active');
+
+
+                document
+                  .querySelectorAll('nav button')
+                  .forEach(
+                    b =>
+                      b.classList.remove('active')
+                  );
+
+
+                if (button)
+                  button.classList.add('active');
+
               }
-              function openSite(url) { window.open(url, '_blank'); }
+
+
+              function openSite(url) {
+
+                window.open(
+                  url,
+                  '_blank'
+                );
+
+              }
+
+
               function updateClock() {
-                document.getElementById('clock').textContent =
-                  new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+                document
+                  .getElementById('clock')
+                  .textContent =
+                    new Date()
+                      .toLocaleTimeString(
+                        'pt-BR',
+                        {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }
+                      );
+
               }
+
+
               updateClock();
-              setInterval(updateClock, 1000);
+
+              setInterval(
+                updateClock,
+                1000
+              );
+
             </script>
+
+
           </body>
+
           </html>
           '@
 
-          Set-Content -Path "$menuDir\index.html" -Value $html -Encoding UTF8
+
+          Set-Content `
+            -Path "$menuDir\index.html" `
+            -Value $html `
+            -Encoding UTF8
+
+
+      # ============================================================
+      # 5. CRIAR   # ============================================================
+      - name: Criar launcher AnDos
+        shell: pwsh
+        run: |
+
+          $menuDir = "C:\AnDos"
 
           $launcher = @'
           @echo off
           start "" msedge --kiosk "file:///C:/AnDos/index.html" --edge-kiosk-type=fullscreen
           '@
-          Set-Content -Path "$menuDir\start-menu.cmd" -Value $launcher -Encoding ASCII
 
-          $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-          New-Item -ItemType Directory -Path $startup -Force | Out-Null
-          Copy-Item "$menuDir\start-menu.cmd" "$startup\AnDos Play.cmd" -Force
+          Set-Content `
+            -Path "$menuDir\start-menu.cmd" `
+            -Value $launcher `
+            -Encoding ASCII
 
-          Write-Host "Menu criado em C:\AnDos\index.html"
-          Write-Host "Launcher criado em C:\AnDos\start-menu.cmd"
 
-      # Mantenha abaixo desta linha as etapas originais
-      # que configuram RDP, Tailscale e o acesso ao seu PC virtual.
-      
+          $startup = `
+            "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+
+
+          New-Item `
+            -ItemType Directory `
+            -Path $startup `
+            -Force |
+            Out-Null
+
+
+          Copy-Item `
+            "$menuDir\start-menu.cmd" `
+            "$startup\AnDos Play.cmd" `
+            -Force
+
+
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "MENU AnDos CRIADO"
+          Write-Host "======================================"
+
+          Write-Host ""
+          Write-Host "Arquivo:"
+          Write-Host "C:\AnDos\index.html"
+
+          Write-Host ""
+          Write-Host "Launcher:"
+          Write-Host "C:\AnDos\start-menu.cmd"
+
+
+      # ============================================================
+      # 6. INICIAR MENU
+      # ============================================================
+      - name: Iniciar AnDos Play
+        shell: pwsh
+        run: |
+
+          Start-Process `
+            "C:\AnDos\start-menu.cmd"
+
+
+      # ============================================================
+      # 7. MANTER O PC ONLINE ATÉ O LIMITE DO JOB
+      # ============================================================
+      - name: Manter AnDos PC ativo
+        shell: pwsh
+        run: |
+
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "       AnDos PC VIRTUAL ONLINE"
+          Write-Host "======================================"
+
+          $tailscalePath = `
+            "C:\Program Files\Tailscale\tailscale.exe"
+
+
+          $ip = ""
+
+          if (Test-Path $tailscalePath) {
+
+              $ip = & $tailscalePath ip -4
+
+          }
+
+
+          Write-Host ""
+          Write-Host "IP TAILSCALE:"
+          Write-Host $ip
+
+          Write-Host ""
+          Write-Host "USUARIO:"
+          Write-Host "AnDos"
+
+          Write-Host ""
+          Write-Host "SENHA:"
+          Write-Host "AnDos@2026PC!"
+
+          Write-Host ""
+          Write-Host "PORTA:"
+          Write-Host "3389"
+
+          Write-Host ""
+          Write-Host "RDP:"
+          Write-Host "$ip`:3389"
+
+          Write-Host ""
+          Write-Host "O PC permanecera ativo ate"
+          Write-Host "o limite do GitHub Actions."
+
+          Write-Host ""
+          Write-Host "======================================"
+
+          while ($true) {
+
+              Start-Sleep -Seconds 60
+
+              $ip = & $tailscalePath ip -4
+
+              Write-Host `
+                "$(Get-Date -Format 'HH:mm:ss') - AnDos online - IP: $ip"
+
+          }
