@@ -1,4 +1,3 @@
-
     - name: Install AnDos PlayStation Menu
       shell: pwsh
       run: |
