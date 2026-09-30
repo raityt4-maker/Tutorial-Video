@@ -1,178 +1,198 @@
-    - name: AnDos PC VIRTUAL
-      shell: pwsh
-      run: |
-        Write-Host "=== INSTALLING ANDOS PLAYSTATION ===" -ForegroundColor Cyan
 
-        $menuDir = "C:\AnDos"
-        New-Item -ItemType Directory -Path $menuDir -Force | Out-Null
+name: AnDos PC VIRTUAL
 
-        $html = @'
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>AnDos PlayStation</title>
-        <style>
-        *{box-sizing:border-box}
-        body{
-          margin:0;color:white;font-family:Arial,sans-serif;
-          background:radial-gradient(ellipse at 70% 15%,
-          #2462b3,#102b5d 48%,#061329);
-          min-height:100vh;padding:35px 5%;
-        }
-        header{display:flex;justify-content:space-between;align-items:center}
-        .logo{font-size:25px;font-weight:bold;letter-spacing:2px}
-        .logo span{color:#70baff}
-        h1{font-size:38px;font-weight:400;margin:55px 0 8px}
-        p{color:#c4d8f5}
-        nav{display:flex;gap:25px;margin:35px 0 28px;
-          border-bottom:1px solid #ffffff40;padding-bottom:15px}
-        nav button{background:none;border:0;color:#bdd2ef;
-          font-size:16px;cursor:pointer}
-        nav button:hover{color:white}
-        .games{display:grid;grid-template-columns:
-          repeat(auto-fit,minmax(160px,1fr));gap:18px}
-        .game{background:#ffffff12;border:2px solid transparent;
-          border-radius:14px;overflow:hidden;cursor:pointer}
-        .game:hover{border-color:#70baff;transform:translateY(-3px)}
-        .cover{height:145px;display:grid;place-items:center;
-          font-size:48px;background:linear-gradient(135deg,#2169b8,#111d46)}
-        .game:nth-child(2) .cover{background:linear-gradient(135deg,#7242a5,#28265c)}
-        .game:nth-child(3) .cover{background:linear-gradient(135deg,#16878b,#163454)}
-        .game:nth-child(4) .cover{background:linear-gradient(135deg,#9b5c31,#45305d)}
-        .info{padding:14px}
-        .info small{display:block;color:#b8cde9;margin-top:6px}
-        .panel{margin-top:30px;padding:20px;background:#ffffff12;
-          border:1px solid #ffffff30;border-radius:14px}
-        .panel button{background:#2877c9;color:white;border:0;
-          border-radius:9px;padding:13px 22px;cursor:pointer}
-        .page{display:none}
-        .page.active{display:block}
-        </style>
-        </head>
-        <body>
-        <header>
-          <div class="logo">AnDos <span>PLAY</span></div>
-          <div id="clock">00:00</div>
-        </header>
+on:
+  workflow_dispatch:
 
-        <h1>Bem-vindo de volta!</h1>
-        <p>Seu espaço de jogos está pronto.</p>
+jobs:
+  deploy:
+    runs-on: windows-latest
+    timeout-minutes: 360
 
-        <nav>
-          <button onclick="page('home')">Início</button>
-          <button onclick="page('library')">Biblioteca</button>
-          <button onclick="page('apps')">Aplicativos</button>
-          <button onclick="page('settings')">Configurações</button>
-        </nav>
+    steps:
+      - name: Criar menu AnDos estilo PS5
+        shell: pwsh
+        run: |
+          $menuDir = "C:\AnDos"
+          New-Item -ItemType Directory -Path $menuDir -Force | Out-Null
 
-        <section id="home" class="page active">
-          <h2>Seus jogos</h2>
-          <div class="games">
-            <div class="game" onclick="openGame('Roblox','https://www.roblox.com/')">
-              <div class="cover">🎮</div>
-              <div class="info"><b>Roblox</b><small>Jogar online</small></div>
-            </div>
-            <div class="game" onclick="openGame('Minecraft','https://www.minecraft.net/')">
-              <div class="cover">🧱</div>
-              <div class="info"><b>Minecraft</b><small>Site oficial</small></div>
-            </div>
-            <div class="game" onclick="openGame('Fortnite','https://www.fortnite.com/')">
-              <div class="cover">⚔️</div>
-              <div class="info"><b>Fortnite</b><small>Site oficial</small></div>
-            </div>
-            <div class="game" onclick="openGame('Steam','https://store.steampowered.com/')">
-              <div class="cover">🚀</div>
-              <div class="info"><b>Steam</b><small>Loja de jogos</small></div>
-            </div>
-          </div>
-          <div class="panel">
-            <h2 id="chosen">Selecione um jogo</h2>
-            <p id="description">Clique em um cartão para abrir.</p>
-            <button onclick="launch()">ABRIR JOGO</button>
-          </div>
-        </section>
+          $html = @'
+          <!DOCTYPE html>
+          <html lang="pt-BR">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AnDos Play</title>
+            <style>
+              * { box-sizing: border-box; }
+              body {
+                margin: 0;
+                color: white;
+                font-family: Arial, sans-serif;
+                background:
+                  radial-gradient(ellipse at 70% 15%, #264b82 0%, transparent 42%),
+                  linear-gradient(135deg, #101a30, #07101f 70%);
+                min-height: 100vh;
+                padding: 24px;
+              }
+              header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                border-bottom: 1px solid #ffffff35;
+                padding: 8px 4px 18px;
+              }
+              .logo { font-size: 25px; font-weight: bold; letter-spacing: 2px; }
+              .logo span { color: #70baff; }
+              #clock { color: #dceaff; font-size: 18px; }
+              h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 400; margin: 34px 0 8px; }
+              p { color: #c4d4ed; margin-top: 0; }
+              nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 20px; }
+              nav button {
+                color: white; background: #ffffff14; border: 1px solid #ffffff2b;
+                border-radius: 10px; padding: 12px 17px; font-size: 15px; cursor: pointer;
+              }
+              nav button.active, nav button:hover { background: #287bd0; }
+              .games {
+                display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+                gap: 16px; margin-top: 18px;
+              }
+              .game {
+                background: #ffffff12; border: 1px solid #ffffff24; border-radius: 16px;
+                min-height: 150px; padding: 17px; cursor: pointer; text-align: left;
+                color: white; transition: .15s;
+              }
+              .game:hover { transform: translateY(-3px); border-color: #70baff; background: #ffffff20; }
+              .cover {
+                height: 75px; display: grid; place-items: center; border-radius: 11px;
+                font-size: 36px; margin-bottom: 13px; background: linear-gradient(135deg, #2d79d5, #182c5b);
+              }
+              .game:nth-child(2) .cover { background: linear-gradient(135deg, #4b965e, #183e2b); }
+              .game:nth-child(3) .cover { background: linear-gradient(135deg, #8b55d5, #36205e); }
+              .game:nth-child(4) .cover { background: linear-gradient(135deg, #d16a32, #5b281b); }
+              .game:nth-child(5) .cover { background: linear-gradient(135deg, #555e70, #202838); }
+              .game:nth-child(6) .cover { background: linear-gradient(135deg, #4b72d1, #24335f); }
+              .game strong { font-size: 16px; }
+              .page { display: none; }
+              .page.active { display: block; }
+              .panel {
+                background: #ffffff12; border: 1px solid #ffffff24; border-radius: 15px;
+                padding: 20px; max-width: 650px; line-height: 1.6;
+              }
+              .panel button {
+                border: 0; border-radius: 9px; padding: 12px 16px;
+                background: #287bd0; color: white; font-weight: bold; cursor: pointer;
+              }
+              footer { color: #91a7c8; font-size: 12px; margin-top: 35px; }
+              @media (max-width: 480px) { body { padding: 16px; } }
+            </style>
+          </head>
+          <body>
+            <header>
+              <div class="logo">AnDos <span>PLAY</span></div>
+              <div id="clock">00:00</div>
+            </header>
 
-        <section id="library" class="page">
-          <h2>Biblioteca</h2>
-          <p>Selecione um jogo na tela inicial.</p>
-        </section>
+            <main>
+              <section id="home" class="page active">
+                <h1>Bem-vindo de volta!</h1>
+                <p>Seu espaço de jogos está pronto.</p>
+                <nav>
+                  <button class="active" onclick="showPage('home', this)">Início</button>
+                  <button onclick="showPage('library', this)">Biblioteca</button>
+                  <button onclick="showPage('apps', this)">Aplicativos</button>
+                  <button onclick="showPage('settings', this)">Configurações</button>
+                </nav>
+                <h2>Jogos e destaques</h2>
+                <div class="games">
+                  <button class="game" onclick="openSite('https://www.roblox.com/')">
+                    <div class="cover">🧱</div><strong>Roblox</strong>
+                  </button>
+                  <button class="game" onclick="openSite('https://www.minecraft.net/')">
+                    <div class="cover">🌳</div><strong>Minecraft</strong>
+                  </button>
+                  <button class="game" onclick="openSite('https://www.fortnite.com/')">
+                    <div class="cover">🎮</div><strong>Fortnite</strong>
+                  </button>
+                  <button class="game" onclick="openSite('https://store.steampowered.com/')">
+                    <div class="cover">🚀</div><strong>Steam</strong>
+                  </button>
+                  <button class="game" onclick="openSite('https://www.youtube.com/')">
+                    <div class="cover">▶️</div><strong>YouTube</strong>
+                  </button>
+                  <button class="game" onclick="openSite('https://discord.com/app')">
+                    <div class="cover">💬</div><strong>Discord</strong>
+                  </button>
+                </div>
+              </section>
 
-        <section id="apps" class="page">
-          <h2>Aplicativos</h2>
-          <div class="games">
-            <div class="game" onclick="openGame('YouTube','https://youtube.com/')">
-              <div class="cover">▶️</div>
-              <div class="info"><b>YouTube</b><small>Vídeos</small></div>
-            </div>
-            <div class="game" onclick="openGame('Discord','https://discord.com/app')">
-              <div class="cover">💬</div>
-              <div class="info"><b>Discord</b><small>Comunidade</small></div>
-            </div>
-          </div>
-        </section>
+              <section id="library" class="page">
+                <h1>Biblioteca</h1>
+                <p>Escolha um atalho para abrir no navegador.</p>
+                <div class="games">
+                  <button class="game" onclick="openSite('https://www.roblox.com/')"><div class="cover">🧱</div><strong>Roblox</strong></button>
+                  <button class="game" onclick="openSite('https://www.minecraft.net/')"><div class="cover">🌳</div><strong>Minecraft</strong></button>
+                  <button class="game" onclick="openSite('https://www.fortnite.com/')"><div class="cover">🎮</div><strong>Fortnite</strong></button>
+                  <button class="game" onclick="openSite('https://store.steampowered.com/')"><div class="cover">🚀</div><strong>Steam</strong></button>
+                </div>
+              </section>
 
-        <section id="settings" class="page">
-          <h2>Configurações</h2>
-          <div class="panel">
-            <p>Sistema: AnDos Play</p>
-            <p>Ambiente: Windows virtual</p>
-            <p>Status: Online</p>
-            <button onclick="document.documentElement.requestFullscreen()">
-              TELA CHEIA
-            </button>
-          </div>
-        </section>
+              <section id="apps" class="page">
+                <h1>Aplicativos</h1>
+                <p>Atalhos para serviços online.</p>
+                <div class="games">
+                  <button class="game" onclick="openSite('https://www.youtube.com/')"><div class="cover">▶️</div><strong>YouTube</strong></button>
+                  <button class="game" onclick="openSite('https://discord.com/app')"><div class="cover">💬</div><strong>Discord</strong></button>
+                  <button class="game" onclick="openSite('https://www.google.com/')"><div class="cover">🌐</div><strong>Google</strong></button>
+                </div>
+              </section>
 
-        <script>
-        let chosenUrl="";
-        function page(id){
-          document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-          document.getElementById(id).classList.add('active');
-        }
-        function openGame(name,url){
-          chosenUrl=url;
-          document.getElementById('chosen').textContent=name;
-          document.getElementById('description').textContent='Selecionado: '+name;
-        }
-        function launch(){
-          if(chosenUrl) window.open(chosenUrl,'_blank');
-          else alert('Selecione um jogo primeiro!');
-        }
-        function clock(){
-          document.getElementById('clock').textContent=
-            new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-        }
-        clock();setInterval(clock,1000);
-        </script>
-        </body>
-        </html>
-        '@
+              <section id="settings" class="page">
+                <h1>Configurações</h1>
+                <div class="panel">
+                  <p><strong>AnDos Play</strong></p>
+                  <p>Interface de inicialização em estilo console. Os cartões abrem sites no navegador; eles não instalam nem iniciam jogos locais.</p>
+                  <button onclick="document.documentElement.requestFullscreen()">Ativar tela cheia</button>
+                </div>
+              </section>
+            </main>
+            <footer>AnDos Play · Interface personalizada</footer>
 
-        $htmlPath = Join-Path $menuDir "index.html"
-        Set-Content -Path $htmlPath -Value $html -Encoding UTF8
+            <script>
+              function showPage(id, button) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                if (button) button.classList.add('active');
+              }
+              function openSite(url) { window.open(url, '_blank'); }
+              function updateClock() {
+                document.getElementById('clock').textContent =
+                  new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+              }
+              updateClock();
+              setInterval(updateClock, 1000);
+            </script>
+          </body>
+          </html>
+          '@
 
-        $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-        New-Item -ItemType Directory -Path $startup -Force | Out-Null
+          Set-Content -Path "$menuDir\index.html" -Value $html -Encoding UTF8
 
-        $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-        if (-not (Test-Path $chrome)) {
-          $chrome = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-        }
-        if (-not (Test-Path $chrome)) {
-          throw "Google Chrome não encontrado."
-        }
+          $launcher = @'
+          @echo off
+          start "" msedge --kiosk "file:///C:/AnDos/index.html" --edge-kiosk-type=fullscreen
+          '@
+          Set-Content -Path "$menuDir\start-menu.cmd" -Value $launcher -Encoding ASCII
 
-        $launcher = Join-Path $menuDir "start-menu.cmd"
-        @"
-        @echo off
-        start "" "$chrome" --kiosk "file:///C:/AnDos/index.html"
-        "@ | Set-Content -Path $launcher -Encoding ASCII
+          $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+          New-Item -ItemType Directory -Path $startup -Force | Out-Null
+          Copy-Item "$menuDir\start-menu.cmd" "$startup\AnDos Play.cmd" -Force
 
-        $shortcut = Join-Path $startup "AnDos PlayStation.cmd"
-        Copy-Item $launcher $shortcut -Force
+          Write-Host "Menu criado em C:\AnDos\index.html"
+          Write-Host "Launcher criado em C:\AnDos\start-menu.cmd"
 
-        Write-Host "Menu criado em $htmlPath" -ForegroundColor Green
-        Write-Host "Inicialização configurada para runneradmin." -ForegroundColor Green
-        
+      # Mantenha abaixo desta linha as etapas originais
+      # que configuram RDP, Tailscale e o acesso ao seu PC virtual.
+      
