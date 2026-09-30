@@ -11,6 +11,7 @@ jobs:
     steps:
 
       # ============================================================
+      # ============================================================
       # 1. CONFIGURAR RDP
       # ============================================================
       - name: Configurar RDP
@@ -27,10 +28,11 @@ jobs:
             -Name "fDenyTSConnections" `
             -Value 0
 
-          # Ativar regras do Firewall para RDP
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          # Ativar firewall do RDP
+          Enable-NetFirewallRule `
+            -DisplayGroup "Remote Desktop"
 
-          # Iniciar serviço RDP
+          # Ativar serviço RDP
           Set-Service `
             -Name "TermService" `
             -StartupType Automatic
@@ -39,66 +41,32 @@ jobs:
             -Name "TermService"
 
           # ======================================================
-          # USUÁRIO
+          # USAR A CONTA PADRÃO DO RUNNER
           # ======================================================
 
-          $username = "AnDos"
-          $password = "AnDosPC2026!"
+          $username = "runneradmin"
+          $password = "P@ssw0rd!"
 
+          # Garantir que a conta esteja habilitada
+          Enable-LocalUser `
+            -Name $username `
+            -ErrorAction SilentlyContinue
+
+          # Garantir senha
           $securePassword = ConvertTo-SecureString `
             $password `
             -AsPlainText `
             -Force
 
-          # ======================================================
-          # CRIAR OU ATUALIZAR USUÁRIO
-          # ======================================================
-
-          $existingUser = Get-LocalUser `
+          Set-LocalUser `
             -Name $username `
-            -ErrorAction SilentlyContinue
+            -Password $securePassword
 
-          if ($null -eq $existingUser) {
-
-              Write-Host "Criando usuário $username..."
-
-              New-LocalUser `
-                -Name $username `
-                -Password $securePassword `
-                -FullName "AnDos PC" `
-                -Description "AnDos PC Virtual"
-
-          }
-          else {
-
-              Write-Host "Usuário já existe."
-              Write-Host "Atualizando senha..."
-
-              Set-LocalUser `
-                -Name $username `
-                -Password $securePassword
-          }
-
-          # ======================================================
-          # GRUPOS
-          # ======================================================
-
-          Add-LocalGroupMember `
-            -Group "Administrators" `
-            -Member $username `
-            -ErrorAction SilentlyContinue
-
+          # Adicionar ao grupo de usuários RDP
           Add-LocalGroupMember `
             -Group "Remote Desktop Users" `
             -Member $username `
             -ErrorAction SilentlyContinue
-
-          # ======================================================
-          # GARANTIR QUE A CONTA NÃO ESTEJA DESABILITADA
-          # ======================================================
-
-          Enable-LocalUser `
-            -Name $username
 
           Write-Host ""
           Write-Host "======================================"
@@ -107,11 +75,11 @@ jobs:
 
           Write-Host ""
           Write-Host "USUARIO:"
-          Write-Host $username
+          Write-Host "runneradmin"
 
           Write-Host ""
           Write-Host "SENHA:"
-          Write-Host $password
+          Write-Host "P@ssw0rd!"
 
           Write-Host ""
           Write-Host "PORTA:"
@@ -119,8 +87,6 @@ jobs:
 
           Write-Host ""
           Write-Host "======================================"
-
-
       # ============================================================
       # 2. CONECTAR AO TAILSCALE
       # ============================================================
